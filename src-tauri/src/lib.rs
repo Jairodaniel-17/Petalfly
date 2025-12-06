@@ -1,19 +1,21 @@
+mod clients;
 mod commands;
 mod crypto;
 mod domain;
 mod history;
-mod http_client;
 mod pfs_parser;
 mod test_runner;
 
+use clients::graphql::execute_graphql;
+use clients::http::execute_http;
+use clients::websocket::execute_websocket;
 use commands::fs as fs_commands;
 use crypto::{decrypt_secret as decrypt, encrypt_secret as encrypt};
 use domain::{
-    EnvironmentFile, ExecutablePayload, ExecutedResponse, HistoryEntry, WorkspaceIndex,
+    EnvironmentFile, ExecutablePayload, ExecutedResponse, GraphQLPayload, HistoryEntry, WebSocketPayload, WorkspaceIndex,
     WorkspaceSettings,
 };
 use history::{append_history, read_history};
-use http_client::execute_http;
 
 #[tauri::command]
 async fn read_workspace_index() -> Result<WorkspaceIndex, String> {
@@ -38,6 +40,16 @@ async fn save_environment(environment: EnvironmentFile) -> Result<(), String> {
 #[tauri::command]
 async fn execute_request(payload: ExecutablePayload) -> Result<ExecutedResponse, String> {
     execute_http(payload).await.map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn execute_graphql_request(payload: GraphQLPayload) -> Result<ExecutedResponse, String> {
+    execute_graphql(payload).await.map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn execute_websocket_request(payload: WebSocketPayload) -> Result<ExecutedResponse, String> {
+    execute_websocket(payload).await.map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -109,6 +121,8 @@ pub fn run() {
             save_settings,
             save_environment,
             execute_request,
+            execute_graphql_request,
+            execute_websocket_request,
             encrypt_secret,
             decrypt_secret,
             encrypt_value,

@@ -45,7 +45,7 @@ function buildDoc(auth: PetalflyDocument["request"]["auth"]): PetalflyDocument {
 
 describe("resolveDocument", () => {
   it("resolves bearer auth placeholders before executing", () => {
-    const doc = buildDoc({ type: "bearer", bearer_token_var: "{{session_token}}" });
+    const doc = buildDoc({ type: "bearer", bearer_token: "{{session_token}}" });
     const { doc: resolved } = resolveDocument({ doc, environment: BASE_ENV });
 
     expect(resolved.request.url).toBe("https://api.petalfly.dev/acme");
@@ -55,22 +55,22 @@ describe("resolveDocument", () => {
         resolved.request.query?.include.value,
     ).toBe("acme");
     expect(resolved.request.body?.value).toBe('{"user":"demo"}');
-    expect(resolved.request.auth?.bearer_token_var).toBe("token-123");
+    expect(resolved.request.auth?.bearer_token).toBe("token-123");
 
     // Original document remains untouched for editing in the UI
-    expect(doc.request.auth?.bearer_token_var).toBe("{{session_token}}");
+    expect(doc.request.auth?.bearer_token).toBe("{{session_token}}");
   });
 
   it("resolves API key auth variables and keeps warnings accurate", () => {
     const doc = buildDoc({
       type: "apiKey",
-      api_key_var: "{{api_key}}",
+      api_key: "{{api_key}}",
       name: "X-Api-Key",
       in: "header",
     });
     const result = resolveDocument({ doc, environment: BASE_ENV });
 
-    expect(result.doc.request.auth?.api_key_var).toBe("api-key-xyz");
+    expect(result.doc.request.auth?.api_key).toBe("api-key-xyz");
     expect(result.warnings).toEqual([]);
   });
 });

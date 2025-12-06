@@ -3,7 +3,7 @@ import type { PetalflyDocument, QueryParam } from "@/types/pfs";
 import { collectDocumentVariables, detectVariables } from "./pfsParser";
 
 const VAR_REGEX = /\{\{\s*([\w\.\-]+)\s*\}\}/g;
-const AUTH_VALUE_FIELDS = ["bearer_token_var", "basic_user_var", "basic_password_var", "api_key_var"] as const;
+const AUTH_VALUE_FIELDS = ["bearer_token", "basic_user", "basic_password", "api_key"] as const;
 type AuthValueField = (typeof AUTH_VALUE_FIELDS)[number];
 
 export interface ResolveOptions {

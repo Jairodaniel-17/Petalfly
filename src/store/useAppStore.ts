@@ -53,6 +53,7 @@ export interface AppState extends PlaygroundState {
   selectEnvironment: (name: string) => Promise<void>;
   persistSettings: (settings: WorkspaceSettings) => Promise<void>;
   duplicateEnvironment: (source: string, target: string) => Promise<void>;
+  createEnvironment: (name: string) => Promise<void>;
   setMasterPassword: (password: string) => void;
   openSecretManager: () => void;
   closeSecretManager: () => void;
@@ -528,6 +529,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       environments: [...state.environments, { name: nextName, path, variables: maskedVariables }],
       secretCache: nextCache,
+    }));
+  },
+  async createEnvironment(targetName) {
+    const nextName = sanitizeEnvironmentName(targetName);
+    if (!nextName) {
+      throw new Error("Nombre inválido");
+    }
+    if (get().environments.some((env) => env.name === nextName)) {
+      throw new Error("Ya existe un entorno con ese nombre");
+    }
+    const slug = slugify(nextName);
+    const path = `environments/${slug}.yaml`;
+    await saveEnvironment({
+      name: nextName,
+      path,
+      variables: [],
+    });
+    set((state) => ({
+      environments: [...state.environments, { name: nextName, path, variables: [] }],
     }));
   },
   updateEnvironmentVariables(environmentName, variables) {

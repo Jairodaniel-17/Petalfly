@@ -27,3 +27,7 @@ workspace/
 .env.*
 workspace/history/
 workspace/environments/*.local.*
+opencode.exe
+opencode.exe.config
+opencode.exe.manifest
+opencode.pdb

@@ -61,3 +61,62 @@ pub fn detect_variables(text: &str) -> Vec<String> {
         .filter_map(|caps| caps.get(1).map(|m| m.as_str().to_string()))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_yaml::Value;
+
+    #[test]
+    fn test_parse_document() {
+        let source = r#"petalfly 1.0
+meta:
+  id: test
+request:
+  method: GET
+  url: http://example.com
+"#;
+        let result = parse_document(source).unwrap();
+        assert_eq!(result["meta"]["id"], Value::String("test".to_string()));
+    }
+
+    #[test]
+    fn test_validate_required() {
+        let valid: Value = serde_yaml::from_str(r#"
+meta:
+  id: test
+request:
+  method: GET
+"#).unwrap();
+        assert!(validate_required(&valid).is_ok());
+
+        let invalid: Value = serde_yaml::from_str(r#"
+meta:
+  id: test
+"#).unwrap();
+        assert!(validate_required(&invalid).is_err());
+    }
+
+    #[test]
+    fn test_detect_variables() {
+        let text = "url: {{base_url}}/api/{{endpoint}}";
+        let vars = detect_variables(text);
+        assert_eq!(vars, vec!["base_url", "endpoint"]);
+    }
+
+    #[test]
+    fn test_normalize() {
+        let source = r#"petalfly 1.0
+meta:
+  id: test
+docs: """
+This is docs
+"""
+request:
+  method: GET
+"#;
+        let result = normalize(source).unwrap();
+        assert!(result.contains("docs: |"));
+        assert!(result.contains("  This is docs"));
+    }
+}

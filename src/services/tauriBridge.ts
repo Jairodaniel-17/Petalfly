@@ -25,6 +25,28 @@ export interface ExecutablePayload {
   allow_insecure?: boolean;
 }
 
+export interface GraphQLPayload {
+  method?: string;
+  url: string;
+  headers: Record<string, string>;
+  query: string;
+  variables?: any;
+  timeout_ms?: number;
+  allow_insecure?: boolean;
+}
+
+export interface WebSocketPayload {
+  url: string;
+  headers: Record<string, string>;
+  messages: WebSocketMessage[];
+  timeout_ms?: number;
+}
+
+export interface WebSocketMessage {
+  message_type: string;
+  data: string;
+}
+
 const call = <T>(command: string, payload?: Record<string, unknown>) => {
   if (
     typeof window === "undefined" ||
@@ -49,6 +71,12 @@ export const saveEnvironment = (environment: EnvironmentFile) =>
 
 export const executeRequest = (payload: ExecutablePayload) =>
   call<ExecutedResponse>("execute_request", { payload });
+
+export const executeGraphQLRequest = (payload: GraphQLPayload) =>
+  call<ExecutedResponse>("execute_graphql_request", { payload });
+
+export const executeWebSocketRequest = (payload: WebSocketPayload) =>
+  call<ExecutedResponse>("execute_websocket_request", { payload });
 
 export const saveSettings = (settings: WorkspaceSettings) =>
   call<void>("save_settings", { settings });

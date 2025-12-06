@@ -130,10 +130,10 @@ export function collectDocumentVariables(doc: PetalflyDocument): string[] {
   if (doc.request.auth) {
     const { auth } = doc.request;
     [
-      "bearer_token_var",
-      "basic_user_var",
-      "basic_password_var",
-      "api_key_var",
+      "bearer_token",
+      "basic_user",
+      "basic_password",
+      "api_key",
     ].forEach((field) => {
       const authValue = auth[field as keyof typeof auth];
       if (typeof authValue === "string" && authValue) {
@@ -303,21 +303,21 @@ function normalizeAuth(source: unknown): PetalflyAuth {
       typeof candidate.type === "string"
         ? (candidate.type as PetalflyAuth["type"])
         : "none",
-    bearer_token_var:
-      typeof candidate.bearer_token_var === "string"
-        ? candidate.bearer_token_var
+    bearer_token:
+      typeof candidate.bearer_token === "string"
+        ? candidate.bearer_token
         : undefined,
-    basic_user_var:
-      typeof candidate.basic_user_var === "string"
-        ? candidate.basic_user_var
+    basic_user:
+      typeof candidate.basic_user === "string"
+        ? candidate.basic_user
         : undefined,
-    basic_password_var:
-      typeof candidate.basic_password_var === "string"
-        ? candidate.basic_password_var
+    basic_password:
+      typeof candidate.basic_password === "string"
+        ? candidate.basic_password
         : undefined,
-    api_key_var:
-      typeof candidate.api_key_var === "string"
-        ? candidate.api_key_var
+    api_key:
+      typeof candidate.api_key === "string"
+        ? candidate.api_key
         : undefined,
     in:
       candidate.in === "header" || candidate.in === "query"

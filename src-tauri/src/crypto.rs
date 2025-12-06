@@ -78,3 +78,42 @@ fn derive_key(password: &str, salt: &[u8]) -> chacha20poly1305::Key {
     pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, ITERATIONS, &mut key);
     chacha20poly1305::Key::from_slice(&key).to_owned()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encrypt_decrypt() {
+        let password = "test_password";
+        let value = "secret_value";
+        let encrypted = encrypt_secret(password, value).unwrap();
+        let decrypted = decrypt_secret(password, &encrypted).unwrap();
+        assert_eq!(decrypted, value);
+    }
+
+    #[test]
+    fn test_encrypt_empty_password() {
+        let result = encrypt_secret("", "value");
+        assert!(matches!(result, Err(CryptoError::MissingPassword)));
+    }
+
+    #[test]
+    fn test_decrypt_empty_password() {
+        let result = decrypt_secret("", "payload");
+        assert!(matches!(result, Err(CryptoError::MissingPassword)));
+    }
+
+    #[test]
+    fn test_decrypt_invalid_payload() {
+        let result = decrypt_secret("password", "invalid");
+        assert!(matches!(result, Err(CryptoError::InvalidPayload)));
+    }
+
+    #[test]
+    fn test_decrypt_wrong_password() {
+        let encrypted = encrypt_secret("password", "value").unwrap();
+        let result = decrypt_secret("wrong", &encrypted);
+        assert!(matches!(result, Err(CryptoError::CipherError(_))));
+    }
+}

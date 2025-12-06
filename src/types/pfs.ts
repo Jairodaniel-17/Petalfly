@@ -10,6 +10,7 @@ export type HttpMethod =
 export interface PetalflyDocument {
   version: string;
   meta: PetalflyMeta;
+  protocol?: "http" | "grpc" | "graphql" | "websocket";
   request: PetalflyRequest;
   docs?: string;
   tests?: PetalflyTest[];
@@ -32,6 +33,8 @@ export interface PetalflyRequest {
   query?: Record<string, QueryParam | string>;
   body?: PetalflyBody;
   auth?: PetalflyAuth;
+  service?: string;
+  grpc_method?: string;
 }
 
 export interface QueryParam {
@@ -46,10 +49,10 @@ export interface PetalflyBody {
 
 export interface PetalflyAuth {
   type: "none" | "bearer" | "basic" | "apiKey";
-  bearer_token_var?: string;
-  basic_user_var?: string;
-  basic_password_var?: string;
-  api_key_var?: string;
+  bearer_token?: string;
+  basic_user?: string;
+  basic_password?: string;
+  api_key?: string;
   in?: "header" | "query";
   name?: string;
 }

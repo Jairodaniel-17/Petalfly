@@ -212,3 +212,138 @@ fn ensure_json_cache(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::ExecutedResponse;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_status_test() {
+        let response = ExecutedResponse {
+            status: Some(200),
+            status_text: Some("OK".to_string()),
+            headers: HashMap::new(),
+            body: "".to_string(),
+            duration_ms: None,
+            size_bytes: None,
+            error: None,
+        };
+        let tests = vec![TestCase {
+            name: "status ok".to_string(),
+            expect: Expectation {
+                status: Some(200),
+                ..Default::default()
+            },
+        }];
+        let results = run_tests(&response, &tests);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].passed);
+    }
+
+    #[test]
+    fn test_status_fail() {
+        let response = ExecutedResponse {
+            status: Some(404),
+            status_text: Some("Not Found".to_string()),
+            headers: HashMap::new(),
+            body: "".to_string(),
+            duration_ms: None,
+            size_bytes: None,
+            error: None,
+        };
+        let tests = vec![TestCase {
+            name: "status ok".to_string(),
+            expect: Expectation {
+                status: Some(200),
+                ..Default::default()
+            },
+        }];
+        let results = run_tests(&response, &tests);
+        assert_eq!(results.len(), 1);
+        assert!(!results[0].passed);
+    }
+
+    #[test]
+    fn test_header_contains() {
+        let mut headers = HashMap::new();
+        headers.insert("content-type".to_string(), "application/json".to_string());
+        let response = ExecutedResponse {
+            status: Some(200),
+            status_text: Some("OK".to_string()),
+            headers,
+            body: "".to_string(),
+            duration_ms: None,
+            size_bytes: None,
+            error: None,
+        };
+        let tests = vec![TestCase {
+            name: "header contains".to_string(),
+            expect: Expectation {
+                header: Some(HeaderExpectation {
+                    name: "content-type".to_string(),
+                    contains: Some("json".to_string()),
+                    equals: None,
+                }),
+                ..Default::default()
+            },
+        }];
+        let results = run_tests(&response, &tests);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].passed);
+    }
+
+    #[test]
+    fn test_body_contains() {
+        let response = ExecutedResponse {
+            status: Some(200),
+            status_text: Some("OK".to_string()),
+            headers: HashMap::new(),
+            body: "hello world".to_string(),
+            duration_ms: None,
+            size_bytes: None,
+            error: None,
+        };
+        let tests = vec![TestCase {
+            name: "body contains".to_string(),
+            expect: Expectation {
+                body: Some(BodyExpectation {
+                    is_json: None,
+                    contains: Some("world".to_string()),
+                }),
+                ..Default::default()
+            },
+        }];
+        let results = run_tests(&response, &tests);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].passed);
+    }
+
+    #[test]
+    fn test_json_path() {
+        let response = ExecutedResponse {
+            status: Some(200),
+            status_text: Some("OK".to_string()),
+            headers: HashMap::new(),
+            body: r#"{"user": {"name": "test"}}"#.to_string(),
+            duration_ms: None,
+            size_bytes: None,
+            error: None,
+        };
+        let tests = vec![TestCase {
+            name: "json path".to_string(),
+            expect: Expectation {
+                json: Some(JsonExpectation {
+                    path: "$.user.name".to_string(),
+                    r#type: Some("string".to_string()),
+                    equals: Some(serde_json::Value::String("test".to_string())),
+                }),
+                ..Default::default()
+            },
+        }];
+        let results = run_tests(&response, &tests);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].passed);
+    }
+}

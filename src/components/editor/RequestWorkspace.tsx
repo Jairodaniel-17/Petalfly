@@ -5,16 +5,32 @@ import type { EditorTab } from "@/types/domain";
 import { useAppStore, selectActiveRequest } from "@store/useAppStore";
 import Prism from "@services/prismConfig";
 import Editor from "react-simple-code-editor";
+import { MessagesEditor } from "./MessagesEditor";
 
-const EDITOR_TABS: { id: EditorTab; label: string }[] = [
-  { id: "params", label: "Params" },
-  { id: "headers", label: "Headers" },
-  { id: "body", label: "Body" },
-  { id: "auth", label: "Auth" },
-  { id: "tests", label: "Tests" },
-  { id: "docs", label: "Docs" },
-  { id: "raw", label: ".pfs" },
-];
+
+const getEditorTabs = (protocol?: string): { id: EditorTab; label: string }[] => {
+  const baseTabs: { id: EditorTab; label: string }[] = [
+    { id: "params", label: "Params" },
+    { id: "headers", label: "Headers" },
+    { id: "auth", label: "Auth" },
+    { id: "tests", label: "Tests" },
+    { id: "docs", label: "Docs" },
+  ];
+  if (protocol === "graphql") {
+    return [
+      { id: "params", label: "Params" },
+      { id: "headers", label: "Headers" },
+      { id: "body", label: "Query" },
+      { id: "auth", label: "Auth" },
+      { id: "tests", label: "Tests" },
+      { id: "docs", label: "Docs" },
+    ];
+  }
+  return [
+    ...baseTabs,
+    { id: "body", label: "Body" },
+  ];
+};
 
 type QueryValue = NonNullable<PetalflyDocument["request"]["query"]>[string];
 type QueryRow = [string, QueryValue];
@@ -60,25 +76,82 @@ export function RequestWorkspace() {
     <section className="panel panel--request">
       <div className="request-toolbar">
         <select
-          value={activeRequest.doc.request.method}
-          onChange={(event) =>
+          value={activeRequest.doc.protocol ?? "http"}
+          onChange={(event) => {
+            const newProtocol = event.target.value as PetalflyDocument["protocol"];
             updateDocument({
               ...activeRequest.doc,
+              protocol: newProtocol,
               request: {
                 ...activeRequest.doc.request,
-                method: event.target.value as PetalflyDocument["request"]["method"],
+                method: newProtocol === "graphql" ? "POST" : activeRequest.doc.request.method,
               },
-            })
-          }
+            });
+          }}
         >
-          {["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map(
-            (method) => (
-              <option key={method} value={method}>
-                {method}
-              </option>
-            ),
-          )}
+          <option value="http">HTTP</option>
+          <option value="grpc">gRPC (Próximamente)</option>
+          <option value="graphql">GraphQL</option>
+          <option value="websocket">WebSocket</option>
         </select>
+        {(activeRequest.doc.protocol === "http" || activeRequest.doc.protocol === "graphql") && (
+          <select
+            value={activeRequest.doc.request.method}
+            onChange={(event) =>
+              updateDocument({
+                ...activeRequest.doc,
+                request: {
+                  ...activeRequest.doc.request,
+                  method: event.target.value as PetalflyDocument["request"]["method"],
+                },
+              })
+            }
+          >
+            {activeRequest.doc.protocol === "graphql"
+              ? ["GET", "POST"].map((method) => (
+                  <option key={method} value={method}>
+                    {method}
+                  </option>
+                ))
+              : ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map(
+                  (method) => (
+                    <option key={method} value={method}>
+                      {method}
+                    </option>
+                  ),
+                )}
+          </select>
+        )}
+        {activeRequest.doc.protocol === "grpc" && (
+          <>
+            <input
+              placeholder="Servicio"
+              value={activeRequest.doc.request.service ?? ""}
+              onChange={(event) =>
+                updateDocument({
+                  ...activeRequest.doc,
+                  request: {
+                    ...activeRequest.doc.request,
+                    service: event.target.value || undefined,
+                  },
+                })
+              }
+            />
+            <input
+              placeholder="Método"
+              value={activeRequest.doc.request.grpc_method ?? ""}
+              onChange={(event) =>
+                updateDocument({
+                  ...activeRequest.doc,
+                  request: {
+                    ...activeRequest.doc.request,
+                    grpc_method: event.target.value || undefined,
+                  },
+                })
+              }
+            />
+          </>
+        )}
         <input
           className="request-toolbar__url"
           value={activeRequest.doc.request.url}
@@ -90,8 +163,12 @@ export function RequestWorkspace() {
           }
         />
         <div className="request-toolbar__actions">
-          <button onClick={saveActiveRequest}>Guardar</button>
-          <button className="button--primary" disabled={loading} onClick={sendActiveRequest}>
+
+          <button
+            className="button--primary"
+            disabled={loading || (activeRequest.doc.protocol !== "http" && activeRequest.doc.protocol !== "graphql" && activeRequest.doc.protocol !== "websocket")}
+            onClick={sendActiveRequest}
+          >
             {loading ? "Enviando..." : "Enviar"}
           </button>
         </div>
@@ -109,10 +186,10 @@ export function RequestWorkspace() {
         </div>
       </div>
       <div className="editor-tabs">
-        {EDITOR_TABS.map((tab) => (
+        {getEditorTabs(activeRequest.doc.protocol).map((tab) => (
           <button
             key={tab.id}
-            className={editorTab === tab.id ? "is-active" : ""}
+            className={`editor-tab ${editorTab === tab.id ? "active" : ""}`}
             onClick={() => setEditorTab(tab.id)}
           >
             {tab.label}
@@ -126,8 +203,11 @@ export function RequestWorkspace() {
         {editorTab === "headers" && (
           <HeadersEditor doc={activeRequest.doc} updateDocument={updateDocument} />
         )}
-        {editorTab === "body" && (
-          <BodyEditor doc={activeRequest.doc} updateDocument={updateDocument} />
+        {editorTab === "body" && activeRequest.doc.protocol !== "websocket" && (
+          <BodyEditor doc={activeRequest.doc} updateDocument={updateDocument} protocol={activeRequest.doc.protocol} />
+        )}
+        {editorTab === "body" && activeRequest.doc.protocol === "websocket" && (
+          <MessagesEditor doc={activeRequest.doc} updateDocument={updateDocument} />
         )}
         {editorTab === "auth" && (
           <AuthEditor doc={activeRequest.doc} updateDocument={updateDocument} />
@@ -306,18 +386,56 @@ function HeadersEditor({
 function BodyEditor({
   doc,
   updateDocument,
+  protocol,
 }: {
   doc: PetalflyDocument;
   updateDocument: (doc: PetalflyDocument) => void;
+  protocol?: string;
 }) {
   const body = doc.request.body ?? { type: "none" };
   const [isJsonValid, setIsJsonValid] = useState(true);
+  const [formData, setFormData] = useState<Array<{key: string, value: string}>>([]);
+
+  useEffect(() => {
+    if (body.type === "form-data" || body.type === "urlencoded") {
+      try {
+        const parsed = JSON.parse(body.value ?? "{}");
+        setFormData(Object.entries(parsed).map(([key, value]) => ({key, value: value as string})));
+      } catch {
+        setFormData([]);
+      }
+    }
+  }, [body.type, body.value]);
 
   const handleBodyChange = (value: string) => {
     updateDocument({
       ...doc,
       request: { ...doc.request, body: { ...body, value } },
     });
+  };
+
+  const updateFormData = (newFormData: Array<{key: string, value: string}>) => {
+    setFormData(newFormData);
+    const obj = newFormData.reduce((acc, {key, value}) => {
+      if (key.trim()) acc[key.trim()] = value;
+      return acc;
+    }, {} as Record<string, string>);
+    handleBodyChange(JSON.stringify(obj));
+  };
+
+  const addFormField = () => {
+    updateFormData([...formData, {key: "", value: ""}]);
+  };
+
+  const updateFormField = (index: number, key: string, value: string) => {
+    const newFormData = [...formData];
+    newFormData[index] = {key, value};
+    updateFormData(newFormData);
+  };
+
+  const removeFormField = (index: number) => {
+    const newFormData = formData.filter((_, i) => i !== index);
+    updateFormData(newFormData);
   };
 
   const formatJson = () => {
@@ -331,31 +449,75 @@ function BodyEditor({
   };
 
   return (
-    <div>
-      <select
-        value={body.type}
-        onChange={(event) =>
-          updateDocument({
-            ...doc,
-            request: { ...doc.request, body: { type: event.target.value as any, value: body.value } },
-          })
-        }
-      >
-        <option value="none">Sin body</option>
-        <option value="json">JSON</option>
-        <option value="text">Texto</option>
-        <option value="form-data">Form Data</option>
-        <option value="urlencoded">x-www-form-urlencoded</option>
-      </select>
-      {body.type !== "none" && (
-        <textarea
-          rows={body.type === "json" ? 12 : 8}
-          value={body.value ?? ""}
-          onChange={(event) => handleBodyChange(event.target.value)}
-        />
-      )}
+    <div className="body-editor">
+      <label>
+        Tipo de body
+        <select
+          value={body.type}
+          onChange={(event) =>
+            updateDocument({
+              ...doc,
+              request: { ...doc.request, body: { type: event.target.value as any, value: body.value } },
+            })
+          }
+        >
+          <option value="none">Sin body</option>
+          <option value="json">JSON</option>
+          <option value="text">Texto</option>
+          <option value="form-data">Form Data</option>
+          <option value="urlencoded">x-www-form-urlencoded</option>
+        </select>
+      </label>
       {body.type === "json" && (
-        <button onClick={formatJson}>{isJsonValid ? "Formatear" : "JSON inválido"}</button>
+        <div>
+          <label>
+            {protocol === "graphql" ? "Query GraphQL" : "Contenido JSON"}
+            <textarea
+              rows={12}
+              value={body.value ?? ""}
+              onChange={(event) => handleBodyChange(event.target.value)}
+              placeholder={protocol === "graphql" ? "query { ... }" : '{"key": "value"}'}
+            />
+          </label>
+          {protocol !== "graphql" && (
+            <button onClick={formatJson} className="button--secondary">
+              {isJsonValid ? "Formatear JSON" : "JSON inválido"}
+            </button>
+          )}
+        </div>
+      )}
+      {body.type === "text" && (
+        <label>
+          Contenido de texto
+          <textarea
+            rows={8}
+            value={body.value ?? ""}
+            onChange={(event) => handleBodyChange(event.target.value)}
+            placeholder="Texto plano"
+          />
+        </label>
+      )}
+      {(body.type === "form-data" || body.type === "urlencoded") && (
+        <div>
+          <div className="form-fields">
+            {formData.map((field, index) => (
+              <div key={index} className="form-field">
+                <input
+                  placeholder="Clave"
+                  value={field.key}
+                  onChange={(e) => updateFormField(index, e.target.value, field.value)}
+                />
+                <input
+                  placeholder="Valor"
+                  value={field.value}
+                  onChange={(e) => updateFormField(index, field.key, e.target.value)}
+                />
+                <button onClick={() => removeFormField(index)} className="button--danger">✕</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={addFormField} className="button--primary">Añadir campo</button>
+        </div>
       )}
     </div>
   );
@@ -395,14 +557,11 @@ function AuthEditor({
       </label>
       {auth.type === "bearer" && (
         <label>
-          Token o {"{{variable}}"}
-          <span className="form-hint">
-            Coloca el valor directo o una variable; se resolverá en el request final.
-          </span>
+          Token
           <input
-            value={auth.bearer_token_var ?? ""}
-            placeholder="token o {{secret_token}}"
-            onChange={(event) => updateAuth({ bearer_token_var: event.target.value })}
+            value={auth.bearer_token ?? ""}
+            placeholder="token o {{variable}}"
+            onChange={(event) => updateAuth({ bearer_token: event.target.value || undefined })}
           />
         </label>
       )}
@@ -410,24 +569,19 @@ function AuthEditor({
         <>
           <label>
             Usuario
-            <span className="form-hint">
-              Puedes usar variables definidas en la barra lateral.
-            </span>
             <input
-              value={auth.basic_user_var ?? ""}
-              placeholder="usuario o {{secret_user}}"
-              onChange={(event) => updateAuth({ basic_user_var: event.target.value })}
+              value={auth.basic_user ?? ""}
+              placeholder="usuario o {{variable}}"
+              onChange={(event) => updateAuth({ basic_user: event.target.value || undefined })}
             />
           </label>
           <label>
-            Password
-            <span className="form-hint">
-              El valor se sustituye automáticamente al ejecutar la petición.
-            </span>
+            Contraseña
             <input
-              value={auth.basic_password_var ?? ""}
-              placeholder="password o {{secret_pass}}"
-              onChange={(event) => updateAuth({ basic_password_var: event.target.value })}
+              type="password"
+              value={auth.basic_password ?? ""}
+              placeholder="contraseña o {{variable}}"
+              onChange={(event) => updateAuth({ basic_password: event.target.value || undefined })}
             />
           </label>
         </>
@@ -442,14 +596,11 @@ function AuthEditor({
             />
           </label>
           <label>
-            Valor o {"{{variable}}"}
-            <span className="form-hint">
-              Referencia variables y las enviaremos con el valor resuelto.
-            </span>
+            Clave
             <input
-              value={auth.api_key_var ?? ""}
-              placeholder="clave o {{secret_key}}"
-              onChange={(event) => updateAuth({ api_key_var: event.target.value })}
+              value={auth.api_key ?? ""}
+              placeholder="clave o {{variable}}"
+              onChange={(event) => updateAuth({ api_key: event.target.value || undefined })}
             />
           </label>
           <label>

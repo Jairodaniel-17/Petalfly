@@ -16,6 +16,7 @@ export function SecretManager() {
   const setSecretValue = useAppStore((s) => s.setSecretValue);
   const saveEnvironmentSecrets = useAppStore((s) => s.saveEnvironmentSecrets);
   const duplicateEnvironment = useAppStore((s) => s.duplicateEnvironment);
+  const createEnvironment = useAppStore((s) => s.createEnvironment);
   const updateEnvironmentVariables = useAppStore((s) => s.updateEnvironmentVariables);
   const encryptionEnabled = useAppStore(selectEncryptionEnabled);
 
@@ -43,7 +44,7 @@ export function SecretManager() {
 
   const env = useMemo(() => {
     if (!environments.length) {
-      return undefined;
+      return { name: "", path: "", variables: [] };
     }
     return environments.find((entry) => entry.name === selectedEnv) ?? environments[0];
   }, [environments, selectedEnv]);
@@ -54,23 +55,25 @@ export function SecretManager() {
   );
 
   useEffect(() => {
-    if (!show || !env || encryptionEnabled) {
+    if (!show || !env) {
       return;
     }
-    const initialValues: Record<string, string> = {};
-    secrets.forEach((secret) => {
-      initialValues[secret.name] = secret.value ?? "";
-    });
-    setEditingValues(initialValues);
+    if (!encryptionEnabled) {
+      const initialValues: Record<string, string> = {};
+      secrets.forEach((secret) => {
+        initialValues[secret.name] = secret.value ?? "";
+      });
+      setEditingValues(initialValues);
+    }
     setVisibility(
       secrets.reduce<Record<string, boolean>>((acc, secret) => {
-        acc[secret.name] = true;
+        acc[secret.name] = !encryptionEnabled;
         return acc;
       }, {}),
     );
   }, [show, encryptionEnabled, env, secrets]);
 
-  if (!show || !env) return null;
+  if (!show) return null;
 
   const ensureValueLoaded = async (variable: VariableDefinition) => {
     if (editingValues[variable.name] !== undefined) {
@@ -87,9 +90,6 @@ export function SecretManager() {
   };
 
   const handleToggleVisible = async (variable: VariableDefinition) => {
-    if (!encryptionEnabled) {
-      return;
-    }
     if (!visibility[variable.name]) {
       try {
         await ensureValueLoaded(variable);
@@ -152,6 +152,18 @@ export function SecretManager() {
     setSecretValue(env.name, variable.name, "");
   };
 
+  const handleCreate = async () => {
+    const name = window.prompt("Nombre del nuevo entorno");
+    if (!name) return;
+    try {
+      await createEnvironment(name);
+      setMessages(`Entorno ${name} creado`);
+      setSelectedEnv(name.trim());
+    } catch (error) {
+      setMessages((error as Error).message);
+    }
+  };
+
   const handleDuplicate = async () => {
     const name = window.prompt("Nombre del nuevo entorno");
     if (!name) return;
@@ -163,6 +175,21 @@ export function SecretManager() {
       setMessages((error as Error).message);
     }
   };
+
+  if (!env || env.name === "") {
+    return (
+      <div className="modal">
+        <div className="modal__content">
+          <div className="modal__header">
+            <h3>Secret Manager</h3>
+            <button onClick={close}>Cerrar</button>
+          </div>
+          <p>No hay entornos disponibles.</p>
+          <button onClick={handleCreate}>Crear entorno</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal">
@@ -190,7 +217,7 @@ export function SecretManager() {
         <div className="secret-list">
           {secrets.length === 0 && <p>No hay secrets en este entorno.</p>}
           {secrets.map((secret) => {
-            const visible = encryptionEnabled ? Boolean(visibility[secret.name]) : true;
+            const visible = Boolean(visibility[secret.name]);
             return (
               <div className="secret-row" key={secret.name}>
                 <div className="secret-row__info">

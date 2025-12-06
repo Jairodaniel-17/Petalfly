@@ -80,6 +80,45 @@ pub struct ExecutableBody {
     pub value: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphQLPayload {
+    pub method: Option<String>,
+    pub url: String,
+    pub headers: std::collections::HashMap<String, String>,
+    pub query: String,
+    pub variables: Option<serde_json::Value>,
+    pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub allow_insecure: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
+pub struct GRPCPayload {
+    pub url: String,
+    pub service: String,
+    pub method: String,
+    pub request: serde_json::Value,
+    pub headers: std::collections::HashMap<String, String>,
+    pub timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebSocketPayload {
+    pub url: String,
+    pub headers: std::collections::HashMap<String, String>,
+    pub messages: Vec<WebSocketMessage>,
+    pub timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebSocketMessage {
+    pub message_type: String,
+    pub data: String,
+}
+
+
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutedResponse {
