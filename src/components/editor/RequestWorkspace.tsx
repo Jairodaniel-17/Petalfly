@@ -248,7 +248,7 @@ export function RequestWorkspace() {
                 <span className="pfs-tab__hint">
                   Tip: usa variables y referencias igual que en el editor visual.
                 </span>
-                <button
+                <button className = "button--primary"
                   onClick={async () => {
                     updateRaw(rawValue);
                     await saveActiveRequest();

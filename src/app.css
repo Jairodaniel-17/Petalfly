@@ -1471,7 +1471,6 @@ textarea {
   background: var(--color-surface);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.45;
