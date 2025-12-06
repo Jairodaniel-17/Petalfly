@@ -4,10 +4,11 @@ import { buildCurlCommand } from "@services/curl";
 import { runTests } from "@services/testRunner";
 import { formatStructuredBody } from "@services/codeFormatter";
 import Prism from "@services/prismConfig";
+import * as curlconverter from "curlconverter";
 
 const EMPTY_HISTORY: any[] = [];
 
-const RESPONSE_TABS = ["body", "headers", "tests", "curl", "history"] as const;
+const RESPONSE_TABS = ["body", "headers", "tests", "curl", "code", "history"] as const;
 
 export function ResponseTabs() {
   const response = useAppStore((s) => s.response);
@@ -23,7 +24,45 @@ export function ResponseTabs() {
 
   const [activeTab, setActiveTab] = useState<(typeof RESPONSE_TABS)[number]>("body");
   const [testsResult, setTestsResult] = useState(response?.tests ?? []);
-  const [copiedBody, setCopiedBody] = useState(false); 
+  const [selectedLang, setSelectedLang] = useState("python");
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedBody, setCopiedBody] = useState(false);
+  const [copiedCurl, setCopiedCurl] = useState(false);
+
+    const curl = buildCurlCommand(lastPayload);
+
+    const getConvertedCode = (lang: string, curlCmd: string) => {
+      try {
+        switch (lang) {
+          case "python":
+            return curlconverter.toPython(curlCmd);
+          case "javascript":
+            return curlconverter.toJavaScript(curlCmd);
+          case "php":
+            return curlconverter.toPhp(curlCmd);
+          case "ruby":
+            return curlconverter.toRuby(curlCmd);
+          case "go":
+            return curlconverter.toGo(curlCmd);
+          case "java":
+            return curlconverter.toJava(curlCmd);
+          case "csharp":
+            return curlconverter.toCSharp(curlCmd);
+          case "swift":
+            return curlconverter.toSwift(curlCmd);
+          case "kotlin":
+            return curlconverter.toKotlin(curlCmd);
+          case "rust":
+            return curlconverter.toRust(curlCmd);
+          default:
+            return curlCmd;
+        }
+      } catch (error) {
+        return `Error converting to ${lang}: ${error}`;
+      }
+    };
+
+    const convertedCode = getConvertedCode(selectedLang, curl);
 
   useEffect(() => {
     setTestsResult(response?.tests ?? []);
@@ -50,8 +89,7 @@ export function ResponseTabs() {
     );
   }
 
-  const bodySample = formatStructuredBody(response.body);
-  const curl = buildCurlCommand(lastPayload);
+   const bodySample = formatStructuredBody(response.body);
 
   const handleRunTests = () => {
     if (!activeRequest?.doc.tests) return;
@@ -76,20 +114,28 @@ export function ResponseTabs() {
         body: resolved.body ?? activeRequest.doc.request.body,
       },
     });
-    
-  };
 
-  const [copiedCurl, setCopiedCurl] = useState(false);
+   };
 
-  const handleCopyCurl = () => {
-    navigator.clipboard
-      .writeText(curl)
-      .then(() => {
-        setCopiedCurl(true);
-        setTimeout(() => setCopiedCurl(false), 1500);
-      })
-      .catch((err) => console.error("Error copiando cURL:", err));
-  };
+   const handleCopyCurl = () => {
+     navigator.clipboard
+       .writeText(curl)
+       .then(() => {
+         setCopiedCurl(true);
+         setTimeout(() => setCopiedCurl(false), 1500);
+       })
+       .catch((err) => console.error("Error copiando cURL:", err));
+   };
+
+   const handleCopyCode = () => {
+     navigator.clipboard
+       .writeText(convertedCode)
+       .then(() => {
+         setCopiedCode(true);
+         setTimeout(() => setCopiedCode(false), 1500);
+       })
+       .catch((err) => console.error("Error copiando código:", err));
+   };
 
   const handleCopyBody = () => {
     const text =
@@ -204,6 +250,42 @@ export function ResponseTabs() {
 
             <div className="curl-panel">
               <pre>{curl}</pre>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "code" && (
+          <div className="code-panel-wrapper">
+            <select
+              value={selectedLang}
+              onChange={(e) => setSelectedLang(e.target.value)}
+              className="code-lang-select"
+            >
+              <option value="python">Python</option>
+              <option value="javascript">JavaScript</option>
+              <option value="php">PHP</option>
+              <option value="ruby">Ruby</option>
+              <option value="go">Go</option>
+              <option value="java">Java</option>
+              <option value="csharp">C#</option>
+              <option value="swift">Swift</option>
+              <option value="kotlin">Kotlin</option>
+              <option value="rust">Rust</option>
+            </select>
+
+            <button
+              type="button"
+              className={`code-copy-btn ${copiedCode ? "is-copied" : ""}`}
+              onClick={handleCopyCode}
+              aria-label="Copiar código"
+            >
+              <span aria-hidden="true">
+                {copiedCode ? "✓" : "⧉"}
+              </span>
+            </button>
+
+            <div className="code-panel">
+              <pre>{convertedCode}</pre>
             </div>
           </div>
         )}

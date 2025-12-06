@@ -8,6 +8,7 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
+  assetsInclude: ['**/*.wasm'],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
