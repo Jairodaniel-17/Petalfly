@@ -25,12 +25,14 @@ describe('httpClient', () => {
 
     const result = await executePetalflyRequest({
       doc: {
-        protocol: 'http',
-        request: { method: 'GET', url: 'http://example.com' },
+        version: "1.0",
+        meta: { id: "test", name: "test", collection: "test", tags: [] },
+        protocol: "http",
+        request: { method: "GET", url: "http://example.com" },
       },
       environment: [],
       globals: [],
-      settings: { timeoutMs: 30000, ignoreSsl: false },
+      settings: { workspaceName: "test", timeoutMs: 30000, ignoreSsl: false },
     });
 
     expect(result.response).toEqual(mockResponse);
@@ -52,12 +54,14 @@ describe('httpClient', () => {
 
     const result = await executePetalflyRequest({
       doc: {
-        protocol: 'graphql',
-        request: { method: 'POST', url: 'http://example.com/graphql', body: { value: 'query {}' } },
+        version: "1.0",
+        meta: { id: "test", name: "test", collection: "test", tags: [] },
+        protocol: "graphql",
+        request: { method: "POST", url: "http://example.com/graphql", body: { type: "json", value: "query {}" } },
       },
       environment: [],
       globals: [],
-      settings: { timeoutMs: 30000, ignoreSsl: false },
+      settings: { workspaceName: "test", timeoutMs: 30000, ignoreSsl: false },
     });
 
     expect(result.response).toEqual(mockResponse);
@@ -79,12 +83,14 @@ describe('httpClient', () => {
 
     const result = await executePetalflyRequest({
       doc: {
-        protocol: 'websocket',
-        request: { method: 'GET', url: 'ws://example.com', body: { value: '[]' } },
+        version: "1.0",
+        meta: { id: "test", name: "test", collection: "test", tags: [] },
+        protocol: "websocket",
+        request: { method: "GET", url: "ws://example.com", body: { type: "text", value: "[]" } },
       },
       environment: [],
       globals: [],
-      settings: { timeoutMs: 30000, ignoreSsl: false },
+      settings: { workspaceName: "test", timeoutMs: 30000, ignoreSsl: false },
     });
 
     expect(result.response).toEqual(mockResponse);

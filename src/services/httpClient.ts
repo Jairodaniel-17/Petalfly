@@ -31,16 +31,16 @@ export async function executePetalflyRequest({
 }: ExecutionContext): Promise<ExecutionResult> {
   const resolved = resolveDocument({ doc, environment, globals });
   let response: ExecutedResponse;
-  let payload: ExecutablePayload | GraphQLPayload;
+  let payload: any;
   if (doc.protocol === "graphql") {
     payload = buildGraphQLPayload(resolved.doc, settings, resolved.variables);
-    response = await executeGraphQLRequest(payload as GraphQLPayload);
+    response = await executeGraphQLRequest(payload);
   } else if (doc.protocol === "websocket") {
     payload = buildWebSocketPayload(resolved.doc, settings, resolved.variables);
-    response = await executeWebSocketRequest(payload as WebSocketPayload);
+    response = await executeWebSocketRequest(payload);
   } else {
     payload = buildHTTPPayload(resolved.doc, settings, resolved.variables);
-    response = await executeRequest(payload as ExecutablePayload);
+    response = await executeRequest(payload);
   }
   // Tests only for HTTP-like responses
   if (doc.protocol !== "websocket" && doc.tests?.length) {
@@ -93,6 +93,34 @@ function buildHTTPPayload(
     url,
     headers,
     body: { ...body, value: bodyValue },
+    timeout_ms: settings.timeoutMs,
+    allow_insecure: settings.ignoreSsl,
+  };
+}
+
+function buildGraphQLPayload(
+  doc: PetalflyDocument,
+  settings: WorkspaceSettings,
+  variables: Record<string, string>,
+): GraphQLPayload {
+  const headers: Record<string, string> = { ...(doc.request.headers ?? {}) };
+  const url = doc.request.url;
+
+  if (doc.request.auth) {
+    const authHeader = resolveAuth(doc.request.auth, variables);
+    if (authHeader?.type === "header") {
+      headers[authHeader.name] = authHeader.value;
+    }
+  }
+
+  const query = doc.request.body?.value ?? "";
+
+  return {
+    method: doc.request.method,
+    url,
+    headers,
+    query,
+    variables: null,
     timeout_ms: settings.timeoutMs,
     allow_insecure: settings.ignoreSsl,
   };

@@ -43,7 +43,7 @@ export interface QueryParam {
 }
 
 export interface PetalflyBody {
-  type: "none" | "json" | "text" | "form-data" | "urlencoded";
+  type: "none" | "json" | "yaml" | "text" | "form-data" | "urlencoded";
   value?: string;
 }
 

@@ -166,7 +166,7 @@ export function RequestWorkspace() {
 
           <button
             className="button--primary"
-            disabled={loading || (activeRequest.doc.protocol !== "http" && activeRequest.doc.protocol !== "graphql" && activeRequest.doc.protocol !== "websocket")}
+            disabled={loading || !activeRequest}
             onClick={sendActiveRequest}
           >
             {loading ? "Enviando..." : "Enviar"}
@@ -452,31 +452,41 @@ function BodyEditor({
     <div className="body-editor">
       <label>
         Tipo de body
-        <select
-          value={body.type}
-          onChange={(event) =>
-            updateDocument({
-              ...doc,
-              request: { ...doc.request, body: { type: event.target.value as any, value: body.value } },
-            })
-          }
-        >
-          <option value="none">Sin body</option>
-          <option value="json">JSON</option>
-          <option value="text">Texto</option>
-          <option value="form-data">Form Data</option>
-          <option value="urlencoded">x-www-form-urlencoded</option>
-        </select>
+      <select
+        value={body.type}
+        onChange={(event) =>
+          updateDocument({
+            ...doc,
+            request: { ...doc.request, body: { type: event.target.value as any, value: body.value } },
+          })
+        }
+      >
+        <option value="none">Sin body</option>
+        <option value="json">JSON</option>
+        <option value="yaml">YAML</option>
+        <option value="text">Texto</option>
+        <option value="form-data">Form Data</option>
+        <option value="urlencoded">x-www-form-urlencoded</option>
+      </select>
       </label>
       {body.type === "json" && (
         <div>
           <label>
             {protocol === "graphql" ? "Query GraphQL" : "Contenido JSON"}
-            <textarea
-              rows={12}
+            <Editor
               value={body.value ?? ""}
-              onChange={(event) => handleBodyChange(event.target.value)}
-              placeholder={protocol === "graphql" ? "query { ... }" : '{"key": "value"}'}
+              onValueChange={handleBodyChange}
+              highlight={(code) => Prism.highlight(code, Prism.languages.json, 'json')}
+              padding={15}
+              style={{
+                fontFamily: '"Fira code", "Fira Mono", monospace',
+                fontSize: 14,
+                backgroundColor: 'var(--color-bg)',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '4px',
+                minHeight: '200px',
+              }}
             />
           </label>
           {protocol !== "graphql" && (
@@ -484,6 +494,28 @@ function BodyEditor({
               {isJsonValid ? "Formatear JSON" : "JSON inválido"}
             </button>
           )}
+        </div>
+      )}
+      {body.type === "yaml" && (
+        <div>
+          <label>
+            Contenido YAML
+            <Editor
+              value={body.value ?? ""}
+              onValueChange={handleBodyChange}
+              highlight={(code) => Prism.highlight(code, Prism.languages.yaml, 'yaml')}
+              padding={15}
+              style={{
+                fontFamily: '"Fira code", "Fira Mono", monospace',
+                fontSize: 14,
+                backgroundColor: 'var(--color-bg)',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '4px',
+                minHeight: '200px',
+              }}
+            />
+          </label>
         </div>
       )}
       {body.type === "text" && (

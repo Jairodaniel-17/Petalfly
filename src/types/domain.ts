@@ -97,7 +97,7 @@ export interface HistoryEntry {
   sizeBytes?: number | null;
   timestamp: string;
   url: string;
-  method: string;
+  method?: string;
   bodyPreview?: string | null;
   resolvedRequest?: Record<string, unknown>;
 }
@@ -135,7 +135,7 @@ export interface PlaygroundState {
   showSecretManager: boolean;
   showSettings: boolean;
   showCurlImport: boolean;
-  lastPayload?: ResolvedRequestPayload;
+  lastPayload?: any;
   newRequestDefaults?: {
     collection?: string;
   };

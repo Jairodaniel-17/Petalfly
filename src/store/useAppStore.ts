@@ -284,8 +284,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         durationMs: result.response.durationMs,
         sizeBytes: result.response.sizeBytes,
         timestamp: new Date().toISOString(),
-        url: result.payload.url,
-        method: result.payload.method,
+        url: (result.payload as any).url,
+        method: (result.payload as any).method || "UNKNOWN",
         bodyPreview,
         resolvedRequest: {
           ...result.payload,
