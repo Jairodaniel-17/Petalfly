@@ -408,6 +408,70 @@ textarea::placeholder {
   padding: 12px 0;
   overflow: hidden;
 }
+/* contenedor relativo: ya lo tienes, lo repito solo por contexto */
+.body-panel-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* Botón flotante, pero 100% dependiente de variables de tema */
+.code-copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 5;
+
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-header-bg);  /* se adapta al tema */
+  color: var(--color-text-muted);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 0.8rem;
+  cursor: pointer;
+
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(4px);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.1s ease;
+}
+
+/* Hover: usa acento del tema, sin asumir oscuro/claro */
+.code-copy-btn:hover:not(:disabled) {
+  background: var(--card-bg);
+  border-color: var(--color-accent-soft);
+  color: var(--color-accent-soft);
+  transform: translateY(-1px);
+}
+
+/* Estado "copiado": usa colores de éxito del tema */
+.code-copy-btn.is-copied {
+  background: var(--card-bg);
+  border-color: var(--color-success);
+  color: var(--color-success);
+  transform: none;
+}
+
+/*CURL*/
+.curl-panel-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 
 /* ── CODE PANEL UNIFICADO (.pfs, BODY, cURL, etc.) ─────────── */
 
@@ -418,7 +482,6 @@ textarea::placeholder {
   background: var(--color-surface);
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 
   padding: 16px 18px;
   box-sizing: border-box;
@@ -623,7 +686,6 @@ textarea::placeholder {
   color: var(--color-heading);
   border-color: var(--card-border);
   border-bottom-color: transparent;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
 /* barra inferior de acento del activo */
@@ -1344,4 +1406,18 @@ textarea {
 .titlebar__btn--close:hover {
   background: rgba(255, 97, 136, 0.22);
   color: #fff;
+}
+.tests-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem; /* Espacio entre el botón y la lista */
+}
+
+/* Colores dinámicos según el tema */
+.test-result.ok {
+  color: var(--color-success);
+}
+
+.test-result.fail {
+  color: var(--color-danger);
 }

@@ -12,10 +12,13 @@ use clients::websocket::execute_websocket;
 use commands::fs as fs_commands;
 use crypto::{decrypt_secret as decrypt, encrypt_secret as encrypt};
 use domain::{
-    EnvironmentFile, ExecutablePayload, ExecutedResponse, GraphQLPayload, HistoryEntry, WebSocketPayload, WorkspaceIndex,
-    WorkspaceSettings,
+    EnvironmentFile, ExecutablePayload, ExecutedResponse, GraphQLPayload, HistoryEntry,
+    WebSocketPayload, WorkspaceIndex, WorkspaceSettings,
 };
 use history::{append_history, read_history};
+
+// 👇 IMPORTANTE: para poder usar app.get_webview_window(...)
+use tauri::Manager;
 
 #[tauri::command]
 async fn read_workspace_index() -> Result<WorkspaceIndex, String> {
@@ -115,6 +118,13 @@ async fn rename_entry(from: String, to: String) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // 👇 centrar la ventana principal en Tauri 2
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.center();
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             read_workspace_index,
             save_pfs_file,

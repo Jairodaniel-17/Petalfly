@@ -23,6 +23,7 @@ export function ResponseTabs() {
 
   const [activeTab, setActiveTab] = useState<(typeof RESPONSE_TABS)[number]>("body");
   const [testsResult, setTestsResult] = useState(response?.tests ?? []);
+  const [copiedBody, setCopiedBody] = useState(false); 
 
   useEffect(() => {
     setTestsResult(response?.tests ?? []);
@@ -75,6 +76,36 @@ export function ResponseTabs() {
         body: resolved.body ?? activeRequest.doc.request.body,
       },
     });
+    
+  };
+
+  const [copiedCurl, setCopiedCurl] = useState(false);
+
+  const handleCopyCurl = () => {
+    navigator.clipboard
+      .writeText(curl)
+      .then(() => {
+        setCopiedCurl(true);
+        setTimeout(() => setCopiedCurl(false), 1500);
+      })
+      .catch((err) => console.error("Error copiando cURL:", err));
+  };
+
+  const handleCopyBody = () => {
+    const text =
+      typeof response.body === "string"
+        ? response.body
+        : JSON.stringify(response.body, null, 2);
+
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopiedBody(true);
+        setTimeout(() => setCopiedBody(false), 1500);
+      })
+      .catch((err) => {
+        console.error("Error copiando respuesta:", err);
+      });
   };
 
   return (
@@ -101,11 +132,34 @@ export function ResponseTabs() {
       <div className="response-content">
         {activeTab === "body" && (
           <div className="body-tab">
-            <div className="body-scroll">
-              <pre dangerouslySetInnerHTML={{ __html: Prism.highlight(bodySample.code, Prism.languages.json, 'json') }} />
+            <div className="body-panel-wrapper">
+              <button
+                type="button"
+                className={`code-copy-btn ${copiedBody ? "is-copied" : ""}`}
+                onClick={handleCopyBody}
+                aria-label="Copiar cuerpo de la respuesta"
+              >
+                <span aria-hidden="true">
+                  {copiedBody ? "✓" : "⧉"}
+                </span>
+              </button>
+
+              <div className="body-scroll">
+                <pre
+                  dangerouslySetInnerHTML={{
+                    __html: Prism.highlight(
+                      bodySample.code,
+                      Prism.languages.json,
+                      "json"
+                    ),
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}
+
+
         {activeTab === "headers" && (
           <div className="headers-list">
             {Object.entries(response.headers).map(([key, value]) => (
@@ -116,15 +170,17 @@ export function ResponseTabs() {
             ))}
           </div>
         )}
+        
         {activeTab === "tests" && (
-          <div>
+          <div className="tests-tab">
             <button onClick={handleRunTests}>Run Tests Again</button>
+
             <div className="tests-list">
               {testsResult.length === 0 && <p>No hay tests configurados.</p>}
               {testsResult.map((test) => (
                 <div key={test.name} className="tests-list__item">
                   <span>{test.name}</span>
-                  <span style={{ color: test.passed ? "#34d399" : "#f87171" }}>
+                  <span className={`test-result ${test.passed ? "ok" : "fail"}`}>
                     {test.passed ? "OK" : test.message ?? "Error"}
                   </span>
                 </div>
@@ -132,10 +188,23 @@ export function ResponseTabs() {
             </div>
           </div>
         )}
+
         {activeTab === "curl" && (
-          <div className="curl-panel">
-            <pre>{curl}</pre>
-            <button onClick={() => navigator.clipboard.writeText(curl)}>Copy</button>
+          <div className="curl-panel-wrapper">
+            <button
+              type="button"
+              className={`code-copy-btn ${copiedCurl ? "is-copied" : ""}`}
+              onClick={handleCopyCurl}
+              aria-label="Copiar cURL"
+            >
+              <span aria-hidden="true">
+                {copiedCurl ? "✓" : "⧉"}
+              </span>
+            </button>
+
+            <div className="curl-panel">
+              <pre>{curl}</pre>
+            </div>
           </div>
         )}
         {activeTab === "history" && (

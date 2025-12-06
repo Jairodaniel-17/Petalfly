@@ -12,12 +12,15 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Petalfly",
-        "width": 1200,
-        "height": 800,
+        "width": 1366,
+        "height": 768,
+        "minWidth": 1366,
+        "minHeight": 768,
+        "maximizable": true,
         "resizable": true,
         "fullscreen": false,
-        "maximized": true,
         "decorations": false,
         "transparent": false,
         "visible": true
