@@ -74,7 +74,9 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
-  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: "Fira Code", "JetBrains Mono",
+               ui-monospace, SFMono-Regular, Menlo, Monaco,
+               Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 * {
@@ -1476,9 +1478,11 @@ textarea {
   color: var(--input-text);
 }
 
+
 .code-panel pre {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
