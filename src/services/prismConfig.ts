@@ -1,4 +1,5 @@
 import Prism from "prismjs";
+import "prismjs/components/prism-clike";
 import "prismjs/components/prism-json";
 import "prismjs/components/prism-yaml";
 import "prismjs/components/prism-bash";
