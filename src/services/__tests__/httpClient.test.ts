@@ -3,7 +3,7 @@ import { executePetalflyRequest } from '../httpClient';
 import { executeRequest, executeGraphQLRequest, executeWebSocketRequest } from '../tauriBridge';
 
 // Mock the tauri bridge
-vi.mock('./tauriBridge', () => ({
+vi.mock('../tauriBridge', () => ({
   executeRequest: vi.fn(),
   executeGraphQLRequest: vi.fn(),
   executeWebSocketRequest: vi.fn(),

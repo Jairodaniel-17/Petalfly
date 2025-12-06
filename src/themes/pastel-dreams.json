@@ -42,6 +42,6 @@
     "--radius-sm": "12px",
     "--radius-md": "16px",
     "--radius-lg": "20px",
-    "--font-mono": "\"Comic Sans MS\", cursive"
+    "--font-mono": "\"Fira Code\", monospace"
   }
 }

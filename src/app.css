@@ -1,3 +1,31 @@
+@font-face {
+  font-family: "Fira Code";
+  src: url("/fonts/FiraCode-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Fira Code";
+  src: url("/fonts/FiraCode-Bold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Bold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
+
 :root {
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.45;
@@ -41,6 +69,8 @@
   --card-text: #f8f6ef;
   --shadow-soft: 0 25px 60px rgba(0, 0, 0, 0.55);
   --shadow-strong: 0 30px 80px rgba(0, 0, 0, 0.65);
+  --scroll-track-bg: var(--card-bg);
+  --scroll-thumb-border: var(--card-border);
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
@@ -51,14 +81,25 @@
   box-sizing: border-box;
 }
 
+html,
 body,
 #root {
   margin: 0;
   padding: 0;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background-color: var(--color-bg);
   color: var(--color-text);
 }
+
+/* NUEVO contenedor raíz: ocupa toda la ventana y aloja titlebar + app-shell */
+.app-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+}
+
 
 body {
   font-size: 16px;
@@ -113,12 +154,14 @@ textarea::placeholder {
 }
 
 .app-shell {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  min-height: 100vh;
   background: radial-gradient(circle at 20% 0%, rgba(255, 216, 102, 0.08), transparent 45%),
     radial-gradient(circle at 80% 20%, rgba(120, 220, 232, 0.05), transparent 50%),
     var(--color-bg);
 }
+
 
 .sidebar {
   width: 320px;
@@ -269,6 +312,8 @@ textarea::placeholder {
   background: linear-gradient(120deg, rgba(255, 216, 102, 0.04), rgba(255, 97, 136, 0.02)),
     var(--color-bg);
   color: var(--panel-text);
+  overflow: hidden;
+  min-height: 0;
 }
 
 .workspace__toolbar {
@@ -315,16 +360,172 @@ textarea::placeholder {
   gap: 1rem;
   border-right: 1px solid var(--panel-border);
   background: var(--panel-bg);
+  min-height: 0;
 }
 
-.panel--request {
-  border-right: 1px solid var(--panel-border);
-}
-
+/* Misma base para request y response, sobria y uniforme */
+.panel--request,
 .panel--response {
-  border-right: none;
-  background: var(--color-surface-alt);
+  border-right: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  box-shadow: none;
 }
+
+
+.workspace__panels > .panel:last-child {
+  border-right: none;
+}
+
+
+
+.response-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.response-header {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.response-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;             /* NUEVO: contenedor flex */
+  flex-direction: column;    /* NUEVO */
+}
+
+
+.body-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0;
+  overflow: hidden;
+}
+
+/* ── CODE PANEL UNIFICADO (.pfs, BODY, cURL, etc.) ─────────── */
+
+.code-panel,
+.body-scroll,
+.raw-editor__editor,
+.curl-panel pre {
+  background: var(--color-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+
+  padding: 16px 18px;
+  box-sizing: border-box;
+
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--input-text);
+
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.body-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+/* comportamiento del texto dentro de los panels de código */
+
+.body-scroll pre,
+.raw-editor__editor pre,
+.curl-panel pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Syntax highlighting for JSON in response body */
+.body-scroll pre .token.comment {
+  color: var(--color-text-muted);
+}
+
+.body-scroll pre .token.property,
+.body-scroll pre .token.key {
+  color: var(--color-accent);
+}
+
+.body-scroll pre .token.string {
+  color: var(--color-success);
+}
+
+.body-scroll pre .token.number,
+.body-scroll pre .token.boolean {
+  color: var(--color-warning);
+}
+
+.body-scroll pre .token.keyword {
+  color: var(--color-accent-muted);
+}
+
+
+
+.body-scroll pre {
+  margin: 0;
+  white-space: pre-wrap;      /* mantiene formato, pero permite salto de línea */
+  overflow-wrap: anywhere;    /* rompe URLs largas, tokens, etc. */
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.4;
+  font-family: var(--font-mono);
+}
+
+/* Scrollbar estilizada SOLO para el BODY */
+.body-scroll {
+  scrollbar-width: thin;                                     /* Firefox */
+  scrollbar-color: var(--color-accent-soft) var(--scroll-track-bg);
+}
+
+/* WebKit (Chrome, Edge, etc.) */
+.body-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.body-scroll::-webkit-scrollbar-track {
+  background: var(--scroll-track-bg);
+  border-radius: 999px;
+}
+
+.body-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    var(--color-accent-soft),
+    var(--color-accent-muted)
+  );
+  border-radius: 999px;
+  border: 2px solid var(--scroll-thumb-border);
+}
+
+.body-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    var(--color-accent-strong),
+    var(--color-accent-muted)
+  );
+}
+
+
+.body-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    var(--color-accent-strong),
+    var(--color-accent-muted)
+  );
+}
+
 
 .request-toolbar {
   display: flex;
@@ -384,28 +585,76 @@ textarea::placeholder {
   display: flex;
   gap: 0.4rem;
   border-bottom: 1px solid var(--panel-border);
+  padding: 0 0.25rem;
 }
 
-.editor-tabs button {
+.editor-tabs button,
+.editor-tabs .editor-tab {
+  position: relative;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   border: 1px solid transparent;
   background: transparent;
-  padding: 0.45rem 0.8rem;
+  padding: 0.45rem 0.9rem;
   color: var(--color-text-muted);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
-.editor-tabs button.is-active {
-  border-color: var(--panel-border) var(--panel-border) transparent var(--panel-border);
-  background: var(--color-surface-alt);
+/* hover en tabs inactivos */
+.editor-tabs button:not(.is-active):hover,
+.editor-tabs .editor-tab:not(.is-active):hover {
+  background: rgba(255, 255, 255, 0.04);
   color: var(--color-text);
+  border-color: var(--panel-border);
 }
+
+/* TAB ACTIVO: aplica a varias formas de marcarlo */
+.editor-tabs button.is-active,
+.editor-tabs .editor-tab.is-active,
+.editor-tabs button[aria-selected="true"],
+.editor-tabs .editor-tab[aria-selected="true"] {
+  background: var(--card-bg);
+  color: var(--color-heading);
+  border-color: var(--card-border);
+  border-bottom-color: transparent;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* barra inferior de acento del activo */
+.editor-tabs button.is-active::after,
+.editor-tabs .editor-tab.is-active::after,
+.editor-tabs button[aria-selected="true"]::after,
+.editor-tabs .editor-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -2px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--color-accent-soft),
+    var(--color-accent-muted)
+  );
+}
+
 
 .editor-tab__body {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   border: 1px solid var(--panel-border);
   background: var(--color-surface-alt);
   padding: 1rem;
+  overflow-x: hidden;
   overflow-y: auto;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
@@ -423,6 +672,12 @@ textarea::placeholder {
   align-items: center;
 }
 
+.grid-table__row input {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
+
 .grid-table__row button {
   border-radius: var(--radius-sm);
   border: 1px dashed var(--panel-border);
@@ -436,6 +691,78 @@ textarea::placeholder {
   border: 1px dashed var(--panel-border);
   background: transparent;
   color: var(--color-accent);
+}
+
+/* HEADERS: mismo contenedor que los otros panels de código */
+.headers-list {
+  margin-top: 8px;
+  max-height: 100%;
+
+  padding: 16px 18px;
+  box-sizing: border-box;
+
+  background: var(--color-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--input-text);
+
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Scrollbar igual que los otros code panels */
+.headers-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) var(--scroll-track-bg);
+}
+
+.headers-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.headers-list::-webkit-scrollbar-track {
+  background: var(--scroll-track-bg);
+  border-radius: 999px;
+}
+
+.headers-list::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+}
+
+.headers-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+
+.headers-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr);
+  gap: 4px 12px;
+  margin-bottom: 0.5rem;
+}
+
+.header-name {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.header-value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 768px) {
+  .headers-row {
+    grid-template-columns: minmax(100px, 160px) minmax(0, 1fr);
+  }
 }
 
 .grid-form {
@@ -486,20 +813,22 @@ textarea {
   background: var(--card-bg);
 }
 
+/* ───── RAW EDITOR ───────────────────────────────────────── */
+
 .raw-editor {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  height: 100%;
 }
 
 .raw-editor__editor {
-  font-family: var(--font-mono);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  min-height: 240px;
+  position: relative;
+  flex: 1;
+  min-height: 260px;
 }
 
+/* Aseguramos JetBrains/Fira en todo el editor */
 .raw-editor__editor textarea,
 .raw-editor__editor pre {
   font-family: var(--font-mono) !important;
@@ -507,18 +836,91 @@ textarea {
   line-height: 1.5;
 }
 
+/* Textarea de react-simple-code-editor */
 .raw-editor__editor textarea {
   outline: none;
   border: none !important;
-  color: var(--input-text);
   background: transparent;
-}
-
-.raw-editor__editor pre {
   color: var(--input-text);
-  margin: 0 !important;
+  resize: none;
 }
 
+/* capa de render del código */
+.raw-editor__editor pre {
+  margin: 0 !important;
+  color: var(--input-text);
+  white-space: pre;
+}
+
+/* Scrollbar sobrio y uniforme para todos los code panels */
+
+.code-panel,
+.body-scroll,
+.raw-editor__editor,
+.curl-panel pre {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) var(--scroll-track-bg);
+}
+
+.code-panel::-webkit-scrollbar,
+.body-scroll::-webkit-scrollbar,
+.raw-editor__editor::-webkit-scrollbar,
+.curl-panel pre::-webkit-scrollbar {
+  width: 8px;
+}
+
+.code-panel::-webkit-scrollbar-track,
+.body-scroll::-webkit-scrollbar-track,
+.raw-editor__editor::-webkit-scrollbar-track,
+.curl-panel pre::-webkit-scrollbar-track {
+  background: var(--scroll-track-bg);
+  border-radius: 999px;
+}
+
+.code-panel::-webkit-scrollbar-thumb,
+.body-scroll::-webkit-scrollbar-thumb,
+.raw-editor__editor::-webkit-scrollbar-thumb,
+.curl-panel pre::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+}
+
+.code-panel::-webkit-scrollbar-thumb:hover,
+.body-scroll::-webkit-scrollbar-thumb:hover,
+.raw-editor__editor::-webkit-scrollbar-thumb:hover,
+.curl-panel pre::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+.raw-editor__editor::-webkit-scrollbar {
+  width: 8px;
+}
+
+.raw-editor__editor::-webkit-scrollbar-track {
+  background: var(--scroll-track-bg);
+  border-radius: 999px;
+}
+
+.raw-editor__editor::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    var(--color-accent-soft),
+    var(--color-accent-muted)
+  );
+  border-radius: 999px;
+  border: 2px solid var(--scroll-thumb-border);
+}
+
+.raw-editor__editor::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    var(--color-accent-strong),
+    var(--color-accent-muted)
+  );
+}
+
+/* Colores de tokens (respetamos tu esquema) */
 .raw-editor__editor .token.comment {
   color: var(--color-text-muted);
 }
@@ -541,10 +943,28 @@ textarea {
   color: var(--color-accent-muted);
 }
 
+/* Barra de acción con botón primario */
 .raw-editor__actions {
   display: flex;
   justify-content: flex-end;
+  margin-top: 0.35rem;
 }
+
+.raw-editor__actions button {
+  border-radius: 999px;
+  padding: 0.4rem 1.1rem;
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent-soft);
+  color: var(--color-bg);
+  font-weight: 500;
+  font-size: 0.9rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.raw-editor__actions button:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
 
 .test-card {
   border: 1px solid var(--card-border);
@@ -576,34 +996,15 @@ textarea {
   color: var(--color-text-muted);
 }
 
-.response-body {
-  background: var(--card-bg);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--card-border);
-  padding: 1rem;
-  max-height: 55vh;
-  overflow: auto;
-}
 
-.response-body pre {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
+
+/* cURL: solo comportamiento del texto, el contenedor lo da el “code panel” */
+.curl-panel pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
-  max-width: 100%;
 }
 
-.curl-panel pre {
-  background: var(--card-bg);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--card-border);
-  padding: 0.9rem;
-  font-family: var(--font-mono);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 
 .history-panel {
   display: flex;
@@ -799,4 +1200,148 @@ textarea {
   justify-content: space-between;
   align-items: center;
   margin-top: 0.75rem;
+}
+
+/* ── Layout específico para la pestaña .pfs ───────────────── */
+
+.pfs-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Cabecera discreta encima del code panel */
+.pfs-tab__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.pfs-tab__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-heading);
+}
+
+.pfs-tab__subtitle {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* El code-panel ya tiene fondo, borde y sombra.
+   Solo afinamos padding y altura para .pfs */
+.pfs-tab__code.code-panel {
+  flex: 1;
+  min-height: 220px;
+  padding: 14px 16px;
+}
+
+/* Dentro del code-panel, el editor NO debe dibujar otra “tarjeta” */
+.pfs-tab__code .raw-editor__editor {
+  position: relative;
+  width: 100%;
+  min-height: 0;
+
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+
+  font-family: var(--font-mono) !important;
+}
+
+/* Textarea y capa de resaltado ocupan todo el panel */
+.pfs-tab__code .raw-editor__editor textarea {
+  outline: none;
+  border: none !important;
+  background: transparent;
+  color: var(--input-text);
+  resize: none;
+}
+
+.pfs-tab__code .raw-editor__editor pre {
+  margin: 0 !important;
+  white-space: pre;
+}
+
+/* Pie con botón alineado a la derecha */
+.pfs-tab__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pfs-tab__hint {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.pfs-tab__footer button {
+  border-radius: 999px;
+  padding: 0.4rem 1.2rem;
+}
+
+/* ───────── Titlebar tipo app nativa ───────── */
+
+.titlebar {
+  height: 40px; /* similar a Chrome / Terminal nueva */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem;
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--sidebar-border);
+  -webkit-app-region: drag; /* permite arrastrar la ventana */
+  user-select: none;
+}
+
+.titlebar__left {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--sidebar-text);
+}
+
+.titlebar__logo {
+  font-size: 1.1rem;
+  color: var(--color-accent-soft);
+}
+
+.titlebar__title {
+  opacity: 0.9;
+}
+
+.titlebar__buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;         
+  -webkit-app-region: no-drag;
+}
+
+.titlebar__btn {
+  width: 46px;           
+  height: 30px;          
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--sidebar-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;   
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.titlebar__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.titlebar__btn--close:hover {
+  background: rgba(255, 97, 136, 0.22);
+  color: #fff;
 }

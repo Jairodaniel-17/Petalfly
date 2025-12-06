@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { PetalflyDocument } from "@/types/pfs";
 import type { EditorTab } from "@/types/domain";
@@ -21,6 +21,7 @@ const getEditorTabs = (protocol?: string): { id: EditorTab; label: string }[] =>
       { id: "params", label: "Params" },
       { id: "headers", label: "Headers" },
       { id: "body", label: "Query" },
+      { id: "raw", label: ".pfs" },
       { id: "auth", label: "Auth" },
       { id: "tests", label: "Tests" },
       { id: "docs", label: "Docs" },
@@ -29,6 +30,7 @@ const getEditorTabs = (protocol?: string): { id: EditorTab; label: string }[] =>
   return [
     ...baseTabs,
     { id: "body", label: "Body" },
+    { id: "raw", label: ".pfs" },
   ];
 };
 
@@ -49,7 +51,11 @@ export function RequestWorkspace() {
   const activeEnvName = useAppStore((s) => s.activeEnvironment ?? s.settings.activeEnvironment ?? "");
   const env = environments.find((e) => e.name === activeEnvName);
   const variables = env?.variables ?? [];
-  const [copyMessage, setCopyMessage] = useState<string | null>(null);
+   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+   const [rawValue, setRawValue] = useState(activeRequest?.raw || '');
+   useEffect(() => {
+     setRawValue(activeRequest?.raw || '');
+   }, [activeRequest?.raw]);
 
   const copyPlaceholder = async (name: string) => {
     const tpl = `{{${name}}}`;
@@ -189,7 +195,7 @@ export function RequestWorkspace() {
         {getEditorTabs(activeRequest.doc.protocol).map((tab) => (
           <button
             key={tab.id}
-            className={`editor-tab ${editorTab === tab.id ? "active" : ""}`}
+            className={`editor-tab ${editorTab === tab.id ? "is-active" : ""}`}
             onClick={() => setEditorTab(tab.id)}
           >
             {tab.label}
@@ -218,9 +224,41 @@ export function RequestWorkspace() {
         {editorTab === "docs" && (
           <DocsEditor doc={activeRequest.doc} updateDocument={updateDocument} />
         )}
-        {editorTab === "raw" && (
-          <RawEditor raw={activeRequest.raw} updateRaw={updateRaw} />
-        )}
+         {editorTab === "raw" && (
+            <div className="pfs-tab">
+              <header className="pfs-tab__header">
+                <div className="pfs-tab__title">Petalfly Script (.pfs)</div>
+                <div className="pfs-tab__subtitle">
+                  Basado en YAML, para mayor control y facilidad de la interacción.
+                </div>
+              </header>
+
+              <div className="pfs-tab__code code-panel">
+                <Editor
+                  value={rawValue}
+                  onValueChange={setRawValue}
+                  highlight={(code) => Prism.highlight(code, Prism.languages.pfs ?? Prism.languages.yaml, "pfs")}
+                  padding={0}
+                  className="raw-editor__editor"
+                  textareaClassName="raw-editor__textarea"
+                />
+              </div>
+
+              <footer className="pfs-tab__footer">
+                <span className="pfs-tab__hint">
+                  Tip: usa variables y referencias igual que en el editor visual.
+                </span>
+                <button
+                  onClick={async () => {
+                    updateRaw(rawValue);
+                    await saveActiveRequest();
+                  }}
+                >
+                  Aplicar cambios
+                </button>
+              </footer>
+            </div>
+          )}
       </div>
       {warnings?.length ? (
         <div className="warnings">
@@ -785,36 +823,4 @@ function DocsEditor({
   );
 }
 
-function RawEditor({
-  raw,
-  updateRaw,
-}: {
-  raw: string;
-  updateRaw: (raw: string) => void;
-}) {
-  const [value, setValue] = useState(raw);
-  useEffect(() => {
-    setValue(raw);
-  }, [raw]);
 
-  const highlight = useCallback(
-    (code: string) => Prism.highlight(code, Prism.languages.pfs ?? Prism.languages.yaml, "pfs"),
-    [],
-  );
-
-  return (
-    <div className="raw-editor">
-      <Editor
-        value={value}
-        onValueChange={setValue}
-        highlight={highlight}
-        padding={12}
-        className="raw-editor__editor"
-        textareaClassName="raw-editor__textarea"
-      />
-      <div className="raw-editor__actions">
-        <button onClick={() => updateRaw(value)}>Aplicar cambios</button>
-      </div>
-    </div>
-  );
-}

@@ -3,6 +3,7 @@ import { useAppStore, selectActiveRequest } from "@store/useAppStore";
 import { buildCurlCommand } from "@services/curl";
 import { runTests } from "@services/testRunner";
 import { formatStructuredBody } from "@services/codeFormatter";
+import Prism from "@services/prismConfig";
 
 const EMPTY_HISTORY: any[] = [];
 
@@ -77,36 +78,40 @@ export function ResponseTabs() {
   };
 
   return (
-    <section className="panel panel--response">
-      <h2>Respuesta</h2>
-      <div className="response-meta">
-        <span>Status: {response.status} {response.statusText}</span>
-        <span>Tiempo: {response.durationMs ?? 0} ms</span>
-        <span>Tamaño: {response.sizeBytes ?? 0} B</span>
+    <section className="panel panel--response response-panel">
+      <div className="response-header">
+        <h2>Respuesta</h2>
+        <div className="response-meta">
+          <span>Status: {response.status} {response.statusText}</span>
+          <span>Tiempo: {response.durationMs ?? 0} ms</span>
+          <span>Tamaño: {response.sizeBytes ?? 0} B</span>
+        </div>
+        <div className="editor-tabs">
+          {RESPONSE_TABS.map((tab) => (
+            <button
+              key={tab}
+              className={activeTab === tab ? "is-active" : ""}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="editor-tabs">
-        {RESPONSE_TABS.map((tab) => (
-          <button
-            key={tab}
-            className={activeTab === tab ? "is-active" : ""}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab.toUpperCase()}
-          </button>
-        ))}
-      </div>
-      <div className="editor-tab__body">
+      <div className="response-content">
         {activeTab === "body" && (
-          <div className="response-body">
-            <pre>{bodySample.code}</pre>
+          <div className="body-tab">
+            <div className="body-scroll">
+              <pre dangerouslySetInnerHTML={{ __html: Prism.highlight(bodySample.code, Prism.languages.json, 'json') }} />
+            </div>
           </div>
         )}
         {activeTab === "headers" && (
-          <div className="grid-table">
+          <div className="headers-list">
             {Object.entries(response.headers).map(([key, value]) => (
-              <div className="grid-table__row" key={key}>
-                <strong>{key}</strong>
-                <span>{value}</span>
+              <div className="headers-row" key={key}>
+                <span className="header-name">{key}</span>
+                <span className="header-value">{value}</span>
               </div>
             ))}
           </div>

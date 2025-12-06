@@ -42,6 +42,6 @@
     "--radius-sm": "5px",
     "--radius-md": "10px",
     "--radius-lg": "15px",
-    "--font-mono": "\"Courier New\", monospace"
+    "--font-mono": "\"Fira Code\", monospace"
   }
 }
