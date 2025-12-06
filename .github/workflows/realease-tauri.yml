@@ -3,7 +3,7 @@ name: Build Tauri App
 on:
   push:
     tags:
-      - "v0.1.0"
+      - "v0.2.0"
 
 jobs:
   build:
