@@ -1,0 +1,12 @@
+petalfly 1.0
+meta:
+  id: nuevo-request
+  name: Nuevo Request
+  collection: Personal
+  tags: []
+request:
+  method: GET
+  url: http://localhost:3000
+docs: """
+Describe este request
+"""

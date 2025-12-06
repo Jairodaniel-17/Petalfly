@@ -1,0 +1,224 @@
+   1:import { useEffect, useState } from "react";
+   2:import type { VariableDefinition } from "@types/domain";
+   3:import { useAppStore } from "@store/useAppStore";
+   4:
+   5:const SECRET_PLACEHOLDER = "••••••";
+   6:
+   7:export function SecretManager() {
+   8:  const show = useAppStore((s) => s.showSecretManager);
+   9:  const close = useAppStore((s) => s.closeSecretManager);
+  10:  const environments = useAppStore((s) => s.environments);
+  11:  const activeEnvironment = useAppStore(
+  12:    (s) => s.activeEnvironment ?? s.settings.activeEnvironment ?? s.environments[0]?.name,
+  13:  );
+  14:  const revealSecret = useAppStore((s) => s.revealSecret);
+  15:  const setSecretValue = useAppStore((s) => s.setSecretValue);
+  16:  const saveEnvironmentSecrets = useAppStore((s) => s.saveEnvironmentSecrets);
+  17:  const duplicateEnvironment = useAppStore((s) => s.duplicateEnvironment);
+  18:  const updateEnvironmentVariables = useAppStore((s) => s.updateEnvironmentVariables);
+  19:
+  20:  const [newSecretName, setNewSecretName] = useState("");
+  21:  const [newSecretValue, setNewSecretValue] = useState("");
+  22:  const [messages, setMessages] = useState<string>();
+  23:  const [visibility, setVisibility] = useState<Record<string, boolean>>({});
+  24:  const [editingValues, setEditingValues] = useState<Record<string, string>>({});
+  25:  const [selectedEnv, setSelectedEnv] = useState(activeEnvironment ?? environments[0]?.name ?? "");
+  26:
+  27:  useEffect(() => {
+  28:    if (show) {
+  29:      setSelectedEnv(activeEnvironment ?? environments[0]?.name ?? "");
+  30:      setMessages(undefined);
+  31:    }
+  32:  }, [show, activeEnvironment, environments.length]);
+  33:
+  34:  useEffect(() => {
+  35:    setVisibility({});
+  36:    setEditingValues({});
+  37:    setNewSecretName("");
+  38:    setNewSecretValue("");
+  39:    setMessages(undefined);
+  40:  }, [selectedEnv]);
+  41:
+  42:  if (!show || environments.length === 0) return null;
+  43:
+  44:  const env = environments.find((entry) => entry.name === selectedEnv) ?? environments[0];
+  45:  if (!env) return null;
+  46:
+  47:  const secrets = env.variables.filter((variable) => variable.secret);
+  48:
+  49:  const ensureValueLoaded = async (variable: VariableDefinition) => {
+  50:    if (editingValues[variable.name] !== undefined) {
+  51:      return editingValues[variable.name];
+  52:    }
+  53:    try {
+  54:      const value = await revealSecret(env.name, variable);
+  55:      setEditingValues((prev) => ({ ...prev, [variable.name]: value }));
+  56:      return value;
+  57:    } catch (error) {
+  58:      setMessages((error as Error).message);
+  59:      throw error;
+  60:    }
+  61:  };
+  62:
+  63:  const handleToggleVisible = async (variable: VariableDefinition) => {
+  64:    if (!visibility[variable.name]) {
+  65:      try {
+  66:        await ensureValueLoaded(variable);
+  67:      } catch {
+  68:        return;
+  69:      }
+  70:    }
+  71:    setVisibility((prev) => ({
+  72:      ...prev,
+  73:      [variable.name]: !prev[variable.name],
+  74:    }));
+  75:  };
+  76:
+  77:  const handleValueChange = (variable: VariableDefinition, value: string) => {
+  78:    setEditingValues((prev) => ({ ...prev, [variable.name]: value }));
+  79:    setSecretValue(env.name, variable.name, value);
+  80:  };
+  81:
+  82:  const handleAddSecret = () => {
+  83:    if (!newSecretName.trim()) return;
+  84:    const sanitizedName = newSecretName.trim();
+  85:    const updated = [
+  86:      ...env.variables,
+  87:      { name: sanitizedName, value: "\u0007\u0007\u0007\u0007\u0007\u0007", secret: true },
+  88:    ];
+  89:    updateEnvironmentVariables(env.name, updated);
+  90:    setSecretValue(env.name, sanitizedName, newSecretValue);
+  91:    setEditingValues((prev) => ({ ...prev, [sanitizedName]: newSecretValue }));
+  92:    setNewSecretName("");
+  93:    setNewSecretValue("");
+  94:  };
+  95:
+  96:  const handleEncrypt = async () => {
+  97:    try {
+  98:      await saveEnvironmentSecrets(env.name);
+  99:      setMessages("Secrets guardados y cifrados");
+ 100:    } catch (error) {
+ 101:      setMessages((error as Error).message);
+ 102:    }
+ 103:  };
+ 104:
+ 105:  const handleDelete = (variable: VariableDefinition) => {
+ 106:    const updated = env.variables.filter((entry) => entry.name !== variable.name);
+ 107:    updateEnvironmentVariables(env.name, updated);
+ 108:    setEditingValues((prev) => {
+ 109:      const next = { ...prev };
+ 110:      delete next[variable.name];
+ 111:      return next;
+ 112:    });
+ 113:    setVisibility((prev) => {
+ 114:      const next = { ...prev };
+ 115:      delete next[variable.name];
+ 116:      return next;
+ 117:    });
+ 118:  };
+ 119:
+ 120:  const handleClear = (variable: VariableDefinition) => {
+ 121:    setEditingValues((prev) => ({ ...prev, [variable.name]: "" }));
+ 122:    setSecretValue(env.name, variable.name, "");
+ 123:  };
+ 124:
+ 125:  const handleDuplicate = async () => {
+ 126:    const name = window.prompt("Nombre del nuevo entorno");
+ 127:    if (!name) return;
+ 128:    try {
+ 129:      await duplicateEnvironment(env.name, name);
+ 130:      setMessages(`Entorno ${name} duplicado`);
+ 131:      setSelectedEnv(name.trim());
+ 132:    } catch (error) {
+ 133:      setMessages((error as Error).message);
+ 134:    }
+ 135:  };
+ 136:
+ 137:  return (
+ 138:    <div className="modal">
+ 139:      <div className="modal__content">
+ 140:        <div className="modal__header">
+ 141:          <h3>Secret Manager · {env.name}</h3>
+ 142:          <button onClick={close}>Cerrar</button>
+ 143:        </div>
+ 144:        <div className="secret-toolbar">
+ 145:          <label>
+ 146:            Entorno
+ 147:            <select value={env.name} onChange={(event) => setSelectedEnv(event.target.value)}>
+ 148:              {environments.map((entry) => (
+ 149:                <option key={entry.name} value={entry.name}>
+ 150:                  {entry.name}
+ 151:                </option>
+ 152:              ))}
+ 153:            </select>
+ 154:          </label>
+ 155:          <button className="button--ghost" onClick={handleDuplicate}>
+ 156:            Duplicar entorno
+ 157:          </button>
+ 158:        </div>
+ 159:        {messages && <div className="modal__message">{messages}</div>}
+ 160:        <div className="secret-list">
+ 161:          {secrets.length === 0 && <p>No hay secrets en este entorno.</p>}
+ 162:          {secrets.map((secret) => {
+ 163:            const visible = Boolean(visibility[secret.name]);
+ 164:            return (
+ 165:              <div className="secret-row" key={secret.name}>
+ 166:                <div className="secret-row__info">
+ 167:                  <strong>{secret.name}</strong>
+ 168:                  <div className="secret-row__value">
+ 169:                    <input
+ 170:                      type={visible ? "text" : "password"}
+ 171:                      value={editingValues[secret.name] ?? ""}
+ 172:                      placeholder={SECRET_PLACEHOLDER}
+ 173:                      disabled={!visible}
+ 174:                      onChange={(event) => handleValueChange(secret, event.target.value)}
+ 175:                    />
+ 176:                  </div>
+ 177:                </div>
+ 178:                <div className="secret-row__actions">
+ 179:                  <button
+ 180:                    className="icon-button"
+ 181:                    title={visible ? "Ocultar valor" : "Mostrar valor"}
+ 182:                    onClick={() => handleToggleVisible(secret)}
+ 183:                  >
+ 184:                    {visible ? "🙈" : "👁"}
+ 185:                  </button>
+ 186:                  <button
+ 187:                    className="icon-button"
+ 188:                    title="Vaciar valor"
+ 189:                    onClick={() => handleClear(secret)}
+ 190:                  >
+ 191:                    🧹
+ 192:                  </button>
+ 193:                  <button
+ 194:                    className="icon-button"
+ 195:                    title="Eliminar secret"
+ 196:                    onClick={() => handleDelete(secret)}
+ 197:                  >
+ 198:                    🗑
+ 199:                  </button>
+ 200:                </div>
+ 201:              </div>
+ 202:            );
+ 203:          })}
+ 204:        </div>
+ 205:        <div className="secret-form">
+ 206:          <input
+ 207:            placeholder="Nombre del secret"
+ 208:            value={newSecretName}
+ 209:            onChange={(event) => setNewSecretName(event.target.value)}
+ 210:          />
+ 211:          <input
+ 212:            placeholder="Valor"
+ 213:            value={newSecretValue}
+ 214:            onChange={(event) => setNewSecretValue(event.target.value)}
+ 215:          />
+ 216:          <button onClick={handleAddSecret}>Añadir secret</button>
+ 217:        </div>
+ 218:        <div className="modal__footer">
+ 219:          <button onClick={handleEncrypt}>Encrypt & Save</button>
+ 220:        </div>
+ 221:      </div>
+ 222:    </div>
+ 223:  );
+ 224:}

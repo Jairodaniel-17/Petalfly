@@ -1,0 +1,608 @@
+   1:import { create } from "zustand";
+   2:import type {
+   3:  CurrentRequest,
+   4:  EditorTab,
+   5:  ExecutedResponse,
+   6:  HistoryEntry,
+   7:  PlaygroundState,
+   8:  SecretCacheEntry,
+   9:  VariableDefinition,
+  10:  VariableWarning,
+  11:  WorkspaceFolder,
+  12:  WorkspaceSettings,
+  13:} from "@types/domain";
+  14:import type { PetalflyDocument } from "@types/pfs";
+  15:import { parsePfs, stringifyPfs } from "@services/pfsParser";
+  16:import {
+  17:  appendHistory,
+  18:  createFolder,
+  19:  createRequest,
+  20:  deleteWorkspaceEntry,
+  21:  duplicateRequestFile,
+  22:  encryptSecret,
+  23:  decryptSecret,
+  24:  readHistory,
+  25:  readWorkspace,
+  26:  renameWorkspaceEntry,
+  27:  saveEnvironment,
+  28:  savePfsFile,
+  29:  saveSettings,
+  30:} from "@services/tauriBridge";
+  31:import { executePetalflyRequest } from "@services/httpClient";
+  32:
+  33:const SECRET_PLACEHOLDER = "••••••";
+  34:
+  35:interface AppState extends PlaygroundState {
+  36:  workspacePath?: string;
+  37:  warnings: VariableWarning[];
+  38:  history: Record<string, HistoryEntry[]>;
+  39:  editorTab: EditorTab;
+  40:  secretCache: Record<string, SecretCacheEntry>;
+  41:  masterPassword?: string;
+  42:  showSecretManager: boolean;
+  43:  showSettings: boolean;
+  44:  showCurlImport: boolean;
+  45:  showNewRequest: boolean;
+  46:  showNewFolder: boolean;
+  47:  loadWorkspace: () => Promise<void>;
+  48:  setActiveRequest: (path: string) => Promise<void>;
+  49:  setEditorTab: (tab: EditorTab) => void;
+  50:  updateDocument: (doc: PetalflyDocument) => void;
+  51:  updateRaw: (raw: string) => void;
+  52:  saveActiveRequest: () => Promise<void>;
+  53:  sendActiveRequest: () => Promise<void>;
+  54:  selectEnvironment: (name: string) => Promise<void>;
+  55:  persistSettings: (settings: WorkspaceSettings) => Promise<void>;
+  56:  duplicateEnvironment: (source: string, target: string) => Promise<void>;
+  57:  setMasterPassword: (password: string) => void;
+  58:  openSecretManager: () => void;
+  59:  closeSecretManager: () => void;
+  60:  revealSecret: (environment: string, variable: VariableDefinition) => Promise<string>;
+  61:  setSecretValue: (environment: string, variableName: string, value: string) => void;
+  62:  saveEnvironmentSecrets: (environmentName: string) => Promise<void>;
+  63:  updateEnvironmentVariables: (
+  64:    environmentName: string,
+  65:    variables: VariableDefinition[],
+  66:  ) => void;
+  67:  openSettings: () => void;
+  68:  closeSettings: () => void;
+  69:  openCurlImport: () => void;
+  70:  closeCurlImport: () => void;
+  71:  newRequestDefaults?: { collection?: string };
+  72:  openNewRequest: (defaults?: { collection?: string }) => void;
+  73:  closeNewRequest: () => void;
+  74:  openNewFolder: () => void;
+  75:  closeNewFolder: () => void;
+  76:  loadHistoryForActiveRequest: () => Promise<void>;
+  77:  createCollectionFolder: (path: string) => Promise<void>;
+  78:  createNewRequest: (path: string, template: string) => Promise<void>;
+  79:  duplicateRequest: (source: string, target: string) => Promise<void>;
+  80:  deleteEntry: (path: string) => Promise<void>;
+  81:  renameEntry: (from: string, to: string) => Promise<void>;
+  82:  importCurlDocument: (doc: PetalflyDocument) => Promise<void>;
+  83:}
+  84:
+  85:const secretKey = (environment: string, variable: string) =>
+  86:  `${environment}:${variable}`;
+  87:
+  88:const requestIdentifier = (request: CurrentRequest) =>
+  89:  request.doc.meta.id || request.path.replace(/\\/g, "/");
+  90:
+  91:export const useAppStore = create<AppState>((set, get) => ({
+  92:  requests: [],
+  93:  environments: [],
+  94:  collectionEnvironments: {},
+  95:  folders: [],
+  96:  globals: [],
+  97:  warnings: [],
+  98:  settings: { workspaceName: "Petalfly" },
+  99:  loading: false,
+ 100:  editorTab: "params",
+ 101:  history: {},
+ 102:  secretCache: {},
+ 103:  showSecretManager: false,
+ 104:  showSettings: false,
+ 105:  showCurlImport: false,
+ 106:  showNewRequest: false,
+ 107:  showNewFolder: false,
+ 108:  async loadWorkspace() {
+ 109:    set({ loading: true, error: undefined });
+ 110:    try {
+ 111:      const workspace = await readWorkspace();
+ 112:      const parseIssues: string[] = [];
+ 113:      const requests: CurrentRequest[] = workspace.requests
+ 114:        .map((file) => {
+ 115:          const result = parsePfs(file.content);
+ 116:          if (!result.doc) {
+ 117:            parseIssues.push(file.path);
+ 118:            return undefined;
+ 119:          }
+ 120:          return {
+ 121:            path: file.path,
+ 122:            raw: file.content,
+ 123:            doc: result.doc,
+ 124:          };
+ 125:        })
+ 126:        .filter(Boolean) as CurrentRequest[];
+ 127:
+ 128:      const secretCache: Record<string, SecretCacheEntry> = {};
+ 129:      const environments = workspace.environments.map((environment) => ({
+ 130:        ...environment,
+ 131:        variables: environment.variables.map((variable) => {
+ 132:          if (!variable.secret) return variable;
+ 133:          const key = secretKey(environment.name, variable.name);
+ 134:          secretCache[key] = {
+ 135:            environment: environment.name,
+ 136:            variable: variable.name,
+ 137:            encrypted: variable.value,
+ 138:          };
+ 139:          return { ...variable, value: SECRET_PLACEHOLDER };
+ 140:        }),
+ 141:      }));
+ 142:
+ 143:      const defaultEnvironment = workspace.settings?.activeEnvironment || undefined;
+ 144:      const collectionEnvMap = workspace.settings?.collectionEnvironmentMap ?? {};
+ 145:      set({
+ 146:        requests,
+ 147:        activeRequestPath: requests[0]?.path,
+ 148:        environments,
+ 149:        folders: workspace.folders ?? [],
+ 150:        collectionEnvironments: collectionEnvMap,
+ 151:        globals: workspace.globals,
+ 152:        settings: { disableMasterPasswordPrompt: true, ...(workspace.settings ?? {}) },
+ 153:        workspacePath: workspace.workspacePath,
+ 154:        activeEnvironment: defaultEnvironment,
+ 155:        loading: false,
+ 156:        warnings: [],
+ 157:        editorTab: "params",
+ 158:        secretCache,
+ 159:        lastPayload: undefined,
+ 160:      });
+ 161:      if (requests[0]) {
+ 162:        await get().loadHistoryForActiveRequest();
+ 163:      }
+ 164:      if (parseIssues.length) {
+ 165:        set({
+ 166:          error: `No se pudo parsear: ${parseIssues.join(", ")}`,
+ 167:        });
+ 168:      }
+ 169:    } catch (error) {
+ 170:      const message =
+ 171:        (error as Error).message ??
+ 172:        "No se pudo leer el workspace. Asegúrate de ejecutar `pnpm tauri dev`.";
+ 173:      set({
+ 174:        error: message,
+ 175:        loading: false,
+ 176:      });
+ 177:    }
+ 178:  },
+ 179:  async setActiveRequest(path) {
+ 180:    const { requests, collectionEnvironments, activeEnvironment } = get();
+ 181:    const target = requests.find((request) => request.path === path);
+ 182:    const collection = target?.doc.meta.collection;
+ 183:    const mappedEnv = collection ? collectionEnvironments[collection] : undefined;
+ 184:    const nextState: Partial<AppState> = { activeRequestPath: path, editorTab: "params" };
+ 185:    if (mappedEnv && mappedEnv !== activeEnvironment) {
+ 186:      nextState.activeEnvironment = mappedEnv;
+ 187:    }
+ 188:    set(nextState);
+ 189:    await get().loadHistoryForActiveRequest();
+ 190:  },
+ 191:  setEditorTab(tab) {
+ 192:    set({ editorTab: tab });
+ 193:  },
+ 194:  updateDocument(doc) {
+ 195:    const { requests, activeRequestPath } = get();
+ 196:    if (!activeRequestPath) return;
+ 197:    const raw = stringifyPfs(doc);
+ 198:    const updated = requests.map((request) =>
+ 199:      request.path === activeRequestPath ? { ...request, doc, raw } : request,
+ 200:    );
+ 201:    set({ requests: updated });
+ 202:  },
+ 203:  updateRaw(raw) {
+ 204:    const { requests, activeRequestPath } = get();
+ 205:    if (!activeRequestPath) return;
+ 206:    const target = requests.find((request) => request.path === activeRequestPath);
+ 207:    if (!target) return;
+ 208:    const parsed = parsePfs(raw);
+ 209:    const updated = requests.map((request) => {
+ 210:      if (request.path !== activeRequestPath) return request;
+ 211:      return {
+ 212:        ...request,
+ 213:        raw,
+ 214:        doc: parsed.doc ?? request.doc,
+ 215:      };
+ 216:    });
+ 217:    set({ requests: updated, error: parsed.issues[0]?.message });
+ 218:  },
+ 219:  async saveActiveRequest() {
+ 220:    const { requests, activeRequestPath } = get();
+ 221:    if (!activeRequestPath) return;
+ 222:    const target = requests.find((request) => request.path === activeRequestPath);
+ 223:    if (!target) return;
+ 224:    const raw = stringifyPfs(target.doc);
+ 225:    await savePfsFile(target.path, raw);
+ 226:    const updated = requests.map((request) =>
+ 227:      request.path === activeRequestPath ? { ...request, raw } : request,
+ 228:    );
+ 229:    set({ requests: updated });
+ 230:  },
+ 231:  async sendActiveRequest() {
+ 232:    const {
+ 233:      requests,
+ 234:      activeRequestPath,
+ 235:      environments,
+ 236:      globals,
+ 237:      settings,
+ 238:      activeEnvironment,
+ 239:    } = get();
+ 240:    if (!activeRequestPath) return;
+ 241:    const target = requests.find((request) => request.path === activeRequestPath);
+ 242:    if (!target) return;
+ 243:    set({ loading: true, error: undefined });
+ 244:    try {
+ 245:      const envDefinition = environments.find(
+ 246:        (entry) => entry.name === activeEnvironment,
+ 247:      );
+ 248:      const resolvedEnvironment = envDefinition
+ 249:        ? await getResolvedEnvironmentVariables(envDefinition, get, set)
+ 250:        : [];
+ 251:      const result = await executePetalflyRequest({
+ 252:        doc: target.doc,
+ 253:        environment: resolvedEnvironment,
+ 254:        globals,
+ 255:        settings,
+ 256:      });
+ 257:      const requestId = requestIdentifier(target);
+ 258:      const bodyPreview = result.response.body
+ 259:        ? result.response.body.slice(0, 2000)
+ 260:        : "";
+ 261:      const historyEntry: HistoryEntry = {
+ 262:        status: result.response.status,
+ 263:        statusText: result.response.statusText,
+ 264:        durationMs: result.response.durationMs,
+ 265:        sizeBytes: result.response.sizeBytes,
+ 266:        timestamp: new Date().toISOString(),
+ 267:        url: result.payload.url,
+ 268:        method: result.payload.method,
+ 269:        bodyPreview,
+ 270:        resolvedRequest: {
+ 271:          ...result.payload,
+ 272:        },
+ 273:      };
+ 274:      const newHistory = await appendHistory(
+ 275:        requestId,
+ 276:        historyEntry,
+ 277:        settings.historyLimit,
+ 278:      );
+ 279:      set((state) => ({
+ 280:        response: result.response as ExecutedResponse,
+ 281:        warnings: result.warnings,
+ 282:        loading: false,
+ 283:        lastPayload: result.payload,
+ 284:        history: {
+ 285:          ...state.history,
+ 286:          [requestId]: newHistory,
+ 287:        },
+ 288:      }));
+ 289:    } catch (error) {
+ 290:      set({
+ 291:        error: (error as Error).message,
+ 292:        loading: false,
+ 293:      });
+ 294:    }
+ 295:  },
+ 296:  async selectEnvironment(name) {
+ 297:    const state = get();
+ 298:    const activeRequest = state.requests.find(
+ 299:      (request) => request.path === state.activeRequestPath,
+ 300:    );
+ 301:    const collection = activeRequest?.doc.meta.collection;
+ 302:    const nextMap = { ...state.collectionEnvironments };
+ 303:    if (collection) {
+ 304:      if (name) {
+ 305:        nextMap[collection] = name;
+ 306:      } else {
+ 307:        delete nextMap[collection];
+ 308:      }
+ 309:    }
+ 310:    const cleanedMap = Object.keys(nextMap).reduce<Record<string, string>>((acc, key) => {
+ 311:      const value = nextMap[key];
+ 312:      if (value) acc[key] = value;
+ 313:      return acc;
+ 314:    }, {});
+ 315:    const nextSettings = {
+ 316:      ...state.settings,
+ 317:      activeEnvironment: name || undefined,
+ 318:      collectionEnvironmentMap: Object.keys(cleanedMap).length ? cleanedMap : undefined,
+ 319:    };
+ 320:    set({
+ 321:      activeEnvironment: name || undefined,
+ 322:      collectionEnvironments: cleanedMap,
+ 323:      settings: nextSettings,
+ 324:    });
+ 325:    await saveSettings(nextSettings);
+ 326:  },
+ 327:  async persistSettings(settings) {
+ 328:    const map = get().collectionEnvironments;
+ 329:    const payload = {
+ 330:      ...settings,
+ 331:      collectionEnvironmentMap: Object.keys(map).length ? map : undefined,
+ 332:    };
+ 333:    await saveSettings(payload);
+ 334:    set({ settings: payload });
+ 335:  },
+ 336:  setMasterPassword(password) {
+ 337:    set({ masterPassword: password });
+ 338:  },
+ 339:  openSecretManager() {
+ 340:    set({ showSecretManager: true });
+ 341:  },
+ 342:  closeSecretManager() {
+ 343:    set({ showSecretManager: false });
+ 344:  },
+ 345:  async revealSecret(environmentName, variable) {
+ 346:    const key = secretKey(environmentName, variable.name);
+ 347:    const cache = get().secretCache[key];
+ 348:    if (cache?.value) {
+ 349:      return cache.value;
+ 350:    }
+ 351:    const master = get().masterPassword;
+ 352:    if (!master) {
+ 353:      throw new Error("Ingresa la master password primero");
+ 354:    }
+ 355:    const encrypted = cache?.encrypted ?? variable.value;
+ 356:    const value = await decryptSecret(master, encrypted);
+ 357:    set((state) => ({
+ 358:      secretCache: {
+ 359:        ...state.secretCache,
+ 360:        [key]: {
+ 361:          environment: environmentName,
+ 362:          variable: variable.name,
+ 363:          encrypted,
+ 364:          value,
+ 365:        },
+ 366:      },
+ 367:    }));
+ 368:    return value;
+ 369:  },
+ 370:  setSecretValue(environment, variableName, value) {
+ 371:    const key = secretKey(environment, variableName);
+ 372:    const cache = get().secretCache[key];
+ 373:    set((state) => ({
+ 374:      secretCache: {
+ 375:        ...state.secretCache,
+ 376:        [key]: {
+ 377:          environment,
+ 378:          variable: variableName,
+ 379:          encrypted: cache?.encrypted ?? "",
+ 380:          value,
+ 381:        },
+ 382:      },
+ 383:    }));
+ 384:  },
+ 385:  async saveEnvironmentSecrets(environmentName) {
+ 386:    const { environments, masterPassword, secretCache } = get();
+ 387:    if (!masterPassword) {
+ 388:      throw new Error("Master password requerida");
+ 389:    }
+ 390:    const target = environments.find((env) => env.name === environmentName);
+ 391:    if (!target) return;
+ 392:    const updatedVariables: VariableDefinition[] = [];
+ 393:    const nextCache = { ...secretCache };
+ 394:    for (const variable of target.variables) {
+ 395:      if (!variable.secret) {
+ 396:        updatedVariables.push(variable);
+ 397:        continue;
+ 398:      }
+ 399:      const key = secretKey(environmentName, variable.name);
+ 400:      const cacheValue = nextCache[key];
+ 401:      const plain =
+ 402:        cacheValue?.value && cacheValue.value !== SECRET_PLACEHOLDER
+ 403:          ? cacheValue.value
+ 404:          : cacheValue?.encrypted
+ 405:            ? await decryptSecret(masterPassword, cacheValue.encrypted)
+ 406:            : "";
+ 407:      const encrypted = await encryptSecret(masterPassword, plain);
+ 408:      updatedVariables.push({ ...variable, value: SECRET_PLACEHOLDER });
+ 409:      nextCache[key] = {
+ 410:        environment: environmentName,
+ 411:        variable: variable.name,
+ 412:        encrypted,
+ 413:        value: plain,
+ 414:      };
+ 415:    }
+ 416:    await saveEnvironment({
+ 417:      ...target,
+ 418:      variables: updatedVariables.map((variable) => ({
+ 419:        ...variable,
+ 420:        value: variable.secret ? nextCache[secretKey(environmentName, variable.name)].encrypted : variable.value,
+ 421:      })),
+ 422:    });
+ 423:    const refreshedEnvs = environments.map((env) =>
+ 424:      env.name === environmentName
+ 425:        ? { ...env, variables: updatedVariables }
+ 426:        : env,
+ 427:    );
+ 428:    set({ environments: refreshedEnvs, secretCache: nextCache });
+ 429:  },
+ 430:  async duplicateEnvironment(sourceName, targetName) {
+ 431:    const { environments, secretCache } = get();
+ 432:    const source = environments.find((env) => env.name === sourceName);
+ 433:    if (!source) {
+ 434:      throw new Error("Entorno origen no encontrado");
+ 435:    }
+ 436:    const nextName = sanitizeEnvironmentName(targetName);
+ 437:    if (!nextName) {
+ 438:      throw new Error("Nombre inválido");
+ 439:    }
+ 440:    if (environments.some((env) => env.name === nextName)) {
+ 441:      throw new Error("Ya existe un entorno con ese nombre");
+ 442:    }
+ 443:    const slug = slugify(nextName);
+ 444:    const path = `environments/${slug}.yaml`;
+ 445:    const preparedVariables = source.variables.map((variable) => {
+ 446:      if (!variable.secret) {
+ 447:        return { ...variable };
+ 448:      }
+ 449:      const cacheKey = secretKey(source.name, variable.name);
+ 450:      const encrypted = secretCache[cacheKey]?.encrypted ?? variable.value;
+ 451:      return { ...variable, value: encrypted };
+ 452:    });
+ 453:    await saveEnvironment({
+ 454:      name: nextName,
+ 455:      path,
+ 456:      variables: preparedVariables,
+ 457:    });
+ 458:    const maskedVariables = preparedVariables.map((variable) =>
+ 459:      variable.secret ? { ...variable, value: SECRET_PLACEHOLDER } : variable,
+ 460:    );
+ 461:    const nextCache = { ...secretCache };
+ 462:    preparedVariables.forEach((variable) => {
+ 463:      if (!variable.secret) return;
+ 464:      nextCache[secretKey(nextName, variable.name)] = {
+ 465:        environment: nextName,
+ 466:        variable: variable.name,
+ 467:        encrypted: variable.value,
+ 468:      };
+ 469:    });
+ 470:    set((state) => ({
+ 471:      environments: [...state.environments, { name: nextName, path, variables: maskedVariables }],
+ 472:      secretCache: nextCache,
+ 473:    }));
+ 474:  },
+ 475:  updateEnvironmentVariables(environmentName, variables) {
+ 476:    set((state) => ({
+ 477:      environments: state.environments.map((env) =>
+ 478:        env.name === environmentName ? { ...env, variables } : env,
+ 479:      ),
+ 480:    }));
+ 481:  },
+ 482:  openSettings() {
+ 483:    set({ showSettings: true });
+ 484:  },
+ 485:  closeSettings() {
+ 486:    set({ showSettings: false });
+ 487:  },
+ 488:  openCurlImport() {
+ 489:    set({ showCurlImport: true });
+ 490:  },
+ 491:  closeCurlImport() {
+ 492:    set({ showCurlImport: false });
+ 493:  },
+ 494:  async loadHistoryForActiveRequest() {
+ 495:    const { activeRequestPath, requests } = get();
+ 496:    if (!activeRequestPath) return;
+ 497:    const target = requests.find((req) => req.path === activeRequestPath);
+ 498:    if (!target) return;
+ 499:    const key = requestIdentifier(target);
+ 500:    const entries = await readHistory(key);
+ 501:    set((state) => ({
+ 502:      history: {
+ 503:        ...state.history,
+ 504:        [key]: entries,
+ 505:      },
+ 506:    }));
+ 507:  },
+ 508:  async createCollectionFolder(path) {
+ 509:    await createFolder(path);
+ 510:    await get().loadWorkspace();
+ 511:  },
+ 512:  openNewRequest(defaults) {
+ 513:    set({ showNewRequest: true, newRequestDefaults: defaults });
+ 514:  },
+ 515:  closeNewRequest() {
+ 516:    set({ showNewRequest: false, newRequestDefaults: undefined });
+ 517:  },
+ 518:  openNewFolder() {
+ 519:    set({ showNewFolder: true });
+ 520:  },
+ 521:  closeNewFolder() {
+ 522:    set({ showNewFolder: false });
+ 523:  },
+ 524:  async createNewRequest(path, template) {
+ 525:    await createRequest(path, template);
+ 526:    await get().loadWorkspace();
+ 527:    await get().setActiveRequest(path);
+ 528:  },
+ 529:  async duplicateRequest(source, targetPath) {
+ 530:    await duplicateRequestFile(source, targetPath);
+ 531:    await get().loadWorkspace();
+ 532:    await get().setActiveRequest(targetPath);
+ 533:  },
+ 534:  async deleteEntry(path) {
+ 535:    await deleteWorkspaceEntry(path);
+ 536:    await get().loadWorkspace();
+ 537:  },
+ 538:  async renameEntry(from, to) {
+ 539:    await renameWorkspaceEntry(from, to);
+ 540:    await get().loadWorkspace();
+ 541:    if (to.endsWith(".pfs")) {
+ 542:      await get().setActiveRequest(to);
+ 543:    }
+ 544:  },
+ 545:  async importCurlDocument(doc) {
+ 546:    const collectionName = doc.meta.collection || "Importados";
+ 547:    const filename = doc.meta.id || `req-${Date.now()}`;
+ 548:    const targetPath = `collections/${collectionName}/${filename}.pfs`;
+ 549:    const raw = stringifyPfs(doc);
+ 550:    await createRequest(targetPath, raw);
+ 551:    await get().loadWorkspace();
+ 552:    await get().setActiveRequest(targetPath);
+ 553:  },
+ 554:}));
+ 555:
+ 556:async function getResolvedEnvironmentVariables(
+ 557:  environment: { name: string; variables: VariableDefinition[] },
+ 558:  getState: () => AppState,
+ 559:  setState: (partial: Partial<AppState>) => void,
+ 560:) {
+ 561:  const state = getState();
+ 562:  const resolved: VariableDefinition[] = [];
+ 563:  for (const variable of environment.variables) {
+ 564:    if (!variable.secret) {
+ 565:      resolved.push(variable);
+ 566:      continue;
+ 567:    }
+ 568:    const key = secretKey(environment.name, variable.name);
+ 569:    const cache = state.secretCache[key];
+ 570:    let value = cache?.value;
+ 571:    if (!value) {
+ 572:      const master = state.masterPassword;
+ 573:      if (!master) {
+ 574:        throw new Error("Master password requerida para descifrar secrets");
+ 575:      }
+ 576:      const encrypted = cache?.encrypted ?? variable.value;
+ 577:      value = await decryptSecret(master, encrypted);
+ 578:      setState((prev) => ({
+ 579:        secretCache: {
+ 580:          ...prev.secretCache,
+ 581:          [key]: {
+ 582:            environment: environment.name,
+ 583:            variable: variable.name,
+ 584:            encrypted,
+ 585:            value,
+ 586:          },
+ 587:        },
+ 588:      }));
+ 589:    }
+ 590:    resolved.push({ ...variable, value });
+ 591:  }
+ 592:  return resolved;
+ 593:}
+ 594:
+ 595:export const selectActiveRequest = (state: AppState) =>
+ 596:  state.requests.find((request) => request.path === state.activeRequestPath);
+ 597:
+ 598:function sanitizeEnvironmentName(value: string) {
+ 599:  return value.trim();
+ 600:}
+ 601:
+ 602:function slugify(value: string) {
+ 603:  return value
+ 604:    .trim()
+ 605:    .toLowerCase()
+ 606:    .replace(/[^a-z0-9]+/g, "-")
+ 607:    .replace(/^-+|-+$/g, "") || "env";
+ 608:}
